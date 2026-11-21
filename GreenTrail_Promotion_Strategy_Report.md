@@ -1,6 +1,6 @@
 # GreenTrail Promotion Strategy Report
 
-Nov 21, 2026 · @Nileesh
+Nov 21, 2026 · @Anshuman
 
 GreenTrail should retire Buy-One-Get-One, make community Special Events
 its core promotion, and pair them with a trade-in and repair credit.
