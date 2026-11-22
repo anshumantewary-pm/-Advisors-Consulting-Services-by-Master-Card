@@ -179,3 +179,60 @@ def test_pricing(capsys: pytest.CaptureFixture[str]) -> None:
         == 2
     )
     assert "TYPE=SHARE:RATE" in capsys.readouterr().err
+
+
+def test_merchant_and_chargebacks(capsys: pytest.CaptureFixture[str]) -> None:
+    out = run(
+        capsys,
+        "merchant",
+        "--attempts",
+        "100000",
+        "--approvals",
+        "92000",
+        "--sales",
+        "4.6e6",
+        "--chargebacks",
+        "700",
+        "--decline",
+        "insufficient funds=4000",
+    )
+    assert "early warning" in out
+    assert "insufficient funds" in out
+    assert (
+        main(
+            [
+                "merchant",
+                "--attempts",
+                "1",
+                "--approvals",
+                "1",
+                "--sales",
+                "1",
+                "--chargebacks",
+                "0",
+                "--decline",
+                "x=y",
+            ]
+        )
+        == 2
+    )
+    assert "NAME=NUMBER" in capsys.readouterr().err
+    out = run(
+        capsys,
+        "chargebacks",
+        "--count",
+        "1000",
+        "--value",
+        "80",
+        "--fee",
+        "15",
+        "--contest-rate",
+        "0.6",
+        "--win-rate",
+        "0.4",
+        "--contest-cost",
+        "20",
+    )
+    assert "Recommendation      contest" in out
+    out = run(capsys, "chargebacks", "--count", "10", "--value", "10", "--fee", "15")
+    assert "accept" in out

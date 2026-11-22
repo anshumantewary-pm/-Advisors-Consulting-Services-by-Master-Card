@@ -17,6 +17,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from cardwise import __version__
+from cardwise.acquiring.chargebacks import chargeback_cost
+from cardwise.acquiring.merchant import merchant_kpis
 from cardwise.acquiring.pricing import CardMix, compare_pricing
 from cardwise.advisory.diagnose import diagnose
 from cardwise.advisory.io import review_from_dict
@@ -236,6 +238,84 @@ def _pricing(p: argparse.ArgumentParser) -> Handler:
             "",
             f"Merchant saving on IC++   {money(c.merchant_saving)}",
             f"Markup that keeps margin  {pct(c.equivalent_markup, 2)}",
+        ]
+        return Output("\n".join(lines), c.to_dict())
+
+    return handle
+
+
+def _pairs(items: Sequence[str], flag: str) -> dict[str, float]:
+    out = {}
+    for item in items:
+        name, sep, value = item.partition("=")
+        try:
+            out[name] = float(value)
+        except ValueError:
+            raise ValidationError(f"{flag} {item!r} must look like NAME=NUMBER") from None
+        if not sep:  # pragma: no cover - float("") already raised
+            raise ValidationError(f"{flag} {item!r} must look like NAME=NUMBER")
+    return out
+
+
+@command("merchant", "merchant KPIs: approval rate, decline mix, chargeback standing")
+def _merchant(p: argparse.ArgumentParser) -> Handler:
+    p.add_argument("--attempts", type=float, required=True)
+    p.add_argument("--approvals", type=float, required=True)
+    p.add_argument("--sales", type=float, required=True, help="approved sales value")
+    p.add_argument("--chargebacks", type=float, required=True)
+    p.add_argument("--chargeback-value", type=float)
+    p.add_argument("--decline", action="append", default=[], metavar="REASON=COUNT")
+
+    def handle(args: argparse.Namespace) -> Output:
+        k = merchant_kpis(
+            args.attempts,
+            args.approvals,
+            args.sales,
+            args.chargebacks,
+            args.chargeback_value,
+            _pairs(args.decline, "--decline"),
+        )
+        lines = [
+            f"Approval rate      {pct(k.approval_rate)}",
+            f"Average ticket     {money(k.average_ticket)}",
+            f"Lost sales value   {money(k.lost_sales_value)}",
+            f"Chargeback ratio   {pct(k.chargeback_ratio, 2)} ({k.chargeback_status})",
+        ]
+        lines += [f"  declines: {r:<22} {pct(s)}" for r, s in k.decline_mix.items()]
+        return Output("\n".join(lines), k.to_dict())
+
+    return handle
+
+
+@command("chargebacks", "chargeback cost and whether contesting them pays")
+def _chargebacks(p: argparse.ArgumentParser) -> Handler:
+    p.add_argument("--count", type=float, required=True)
+    p.add_argument("--value", type=float, required=True, help="average disputed sale value")
+    p.add_argument("--fee", type=float, required=True, help="fee per chargeback")
+    p.add_argument("--handling", type=float, default=0.0, help="handling cost per chargeback")
+    p.add_argument("--contest-rate", type=float, default=0.0)
+    p.add_argument("--win-rate", type=float, default=0.0)
+    p.add_argument("--contest-cost", type=float, default=0.0)
+    p.add_argument("--goods-lost", type=float, default=1.0, help="share of sale value lost")
+
+    def handle(args: argparse.Namespace) -> Output:
+        c = chargeback_cost(
+            args.count,
+            args.value,
+            args.fee,
+            args.handling,
+            args.contest_rate,
+            args.win_rate,
+            args.contest_cost,
+            args.goods_lost,
+        )
+        verdict = "contest" if c.contest_recommended else "accept (contesting loses money)"
+        lines = [
+            f"Gross loss          {money(c.gross_loss)}",
+            f"Fees and handling   {money(c.fees + c.handling_cost)}",
+            f"Recovered           {money(c.recovered)}",
+            f"Net loss            {money(c.net_loss)} ({money(c.cost_per_chargeback)} each)",
+            f"Recommendation      {verdict}",
         ]
         return Output("\n".join(lines), c.to_dict())
 
