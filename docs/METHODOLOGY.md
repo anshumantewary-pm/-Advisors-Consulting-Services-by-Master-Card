@@ -37,6 +37,11 @@ The **P&L bridge** attributes the profit change to each line (revenue lines +, c
 - Cost = targeted × contact cost + targeted × response × incentive (incentives also go to those who would have activated anyway)
 - Value per new active = Σₜ profit × retentionᵗ / (1 + d)ᵗ⁺¹ over the horizon
 
+**Line increase** (`issuing.line_increase`)
+- New balances = accounts × increase × utilisation; interest = new balances × revolve share × APR
+- Profit = interest + extra spend × interchange − new balances × (cost of funds + loss rate) − existing balances × loss-rate uplift
+- Break-even loss rate on new balances = (profit before new-balance losses) / new balances
+
 ## Acquiring
 
 - **MDR split**: merchant cost = volume × MDR = interchange + scheme fees + acquirer margin
@@ -46,6 +51,8 @@ The **P&L bridge** attributes the profit change to each line (revenue lines +, c
 - **Chargeback net loss** = disputed value × goods-lost share + fees + handling + contest costs − value recovered; contest if win rate × value × lost share > contest cost
 - **Merchant contribution** = volume × (MDR − interchange − scheme fee) − cost to serve; repriced MDR = interchange + scheme fee + cost to serve / volume + target margin
 
+- **Enhanced data**: effective rate = standard share × standard rate + L2 share × L2 rate + L3 share × L3 rate; saving = volume × (rate today − rate after); payback months = implementation cost / (saving / 12)
+
 ## Risk
 
 - **Fraud rate** = fraud losses / sales × 10,000 bp
@@ -54,6 +61,8 @@ The **P&L bridge** attributes the profit change to each line (revenue lines +, c
 - **Roll rates**: row-normalised transition matrix between buckets, charge-off absorbing; forward roll rate = P(bucket → next bucket); flow-through = product of forward roll rates; projection = balances × matrixᵐ
 - **Vintages**: cumulative loss rate = Σ monthly losses / originated, by months on book; lifetime estimate = loss at month m / seasoning share at m
 - **Provisions**: stage 1 (current, 1-29 dpd) ECL = balance × PD₁₂ × LGD; stage 2 (30-89) uses lifetime PD = 1 − (1 − PD₁₂)^years; stage 3 (90+) PD = 1. The lifetime view applies lifetime PD to every bucket.
+
+- **Early collections**: losses = entering balances × (1 − cure rate) × loss given no cure; benefit = losses avoided − accounts × cost per account; break-even cure uplift = strategy cost / (balances × loss given no cure)
 
 ## Customer
 

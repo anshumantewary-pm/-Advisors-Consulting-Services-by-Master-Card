@@ -65,16 +65,16 @@ Every command takes `--json` for machine-readable output.
 
 | Area | Commands | Library |
 |---|---|---|
-| **Advisory** | `review` (diagnosis, sized opportunities, target state, report), `benchmark`, `types` | `advisory.diagnose`, `advisory.target_state`, `advisory.render_report`, `benchmark.scorecard` |
-| **Issuing** | `pnl`, `rewards`, `activation` | `issuing.card_pnl`, `pnl_bridge`, `portfolio_kpis`, `rewards_programme`, `activation_campaign` |
-| **Acquiring** | `pricing`, `merchant`, `chargebacks`, `merchants` | `acquiring.compare_pricing`, `mdr_split`, `merchant_kpis`, `chargeback_cost`, `merchant_portfolio` |
-| **Risk** | `fraud`, `threshold`, `rollrate`, `vintage`, `provision` | `risk.rule_economics`, `best_threshold`, `rollrate.analyse`, `vintage_curves`, `provision` |
+| **Advisory** | `review` (diagnosis, sized opportunities, target state, report), `compare`, `benchmark`, `types` | `advisory.diagnose`, `advisory.target_state`, `advisory.render_report`, `benchmark.scorecard` |
+| **Issuing** | `pnl`, `bridge`, `rewards`, `activation`, `line-increase` | `issuing.card_pnl`, `pnl_bridge`, `portfolio_kpis`, `rewards_programme`, `activation_campaign`, `line_increase` |
+| **Acquiring** | `pricing`, `merchant`, `chargebacks`, `merchants`, `enhanced-data` | `acquiring.compare_pricing`, `mdr_split`, `merchant_kpis`, `chargeback_cost`, `merchant_portfolio`, `enhanced_data_savings` |
+| **Risk** | `fraud`, `threshold`, `rollrate`, `vintage`, `provision`, `collections` | `risk.rule_economics`, `best_threshold`, `rollrate.analyse`, `vintage_curves`, `provision`, `collections_strategy` |
 | **Customer** | `rfm`, `cohort`, `clv`, `experiment`, `sample-size`, `retention` | `customer.rfm`, `cohort_retention`, `lifetime_value`, `two_proportion_test`, `retention_plan` |
 | **Market** | `market`, `wallet` | `market.card_market`, `share_of_wallet` |
 | **Credit** | `credit`, `collect`, `industries` | `credit.decide`, `render_memo`, `monitor` (CreditDecision) |
 | **What-if** | `models`, `sensitivity`, `goalseek`, `simulate` | `whatif.tornado`, `goal_seek`, `simulate` on any model |
 
-Example inputs for every file-based command are in [`examples/`](examples/).
+Example inputs for every file-based command are in [`examples/`](examples/); `cardwise examples` prints the command for each one.
 
 ## Library use
 
@@ -102,9 +102,9 @@ Every result is a frozen dataclass with `to_dict()`, which is also the `--json` 
 ```
 src/cardwise/
 ├── core/        errors, validation, formatting, Result, JSON parsing
-├── issuing/     portfolio KPIs, card P&L and bridge, rewards, activation
-├── acquiring/   merchant pricing, merchant KPIs, chargebacks, merchant portfolio
-├── risk/        fraud strategy, roll rates, vintages, provisions
+├── issuing/     portfolio KPIs, card P&L and bridge, rewards, activation, line increase
+├── acquiring/   merchant pricing, merchant KPIs, chargebacks, merchant portfolio, L2/L3 data
+├── risk/        fraud strategy, roll rates, vintages, provisions, early collections
 ├── customer/    RFM, cohorts, CLV, experiments, retention offers
 ├── market/      market sizing, share of wallet
 ├── benchmark/   peer percentiles, indicative KPI ranges by portfolio type

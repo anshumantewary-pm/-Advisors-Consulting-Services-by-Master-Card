@@ -993,6 +993,11 @@ EXAMPLES: tuple[tuple[str, str], ...] = (
         "examples/portfolio-review.json",
         "cardwise review examples/portfolio-review.json --report report.md",
     ),
+    (
+        "examples/portfolio-review-premium.json",
+        "cardwise compare examples/portfolio-review.json examples/portfolio-review-premium.json",
+    ),
+    ("examples/pnl-bridge.json", "cardwise bridge examples/pnl-bridge.json"),
     ("examples/peer-benchmark.json", "cardwise benchmark examples/peer-benchmark.json"),
     ("examples/merchant-portfolio.json", "cardwise merchants examples/merchant-portfolio.json"),
     (
