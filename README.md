@@ -61,6 +61,75 @@ cardwise --help                                                      # every com
 
 Every command takes `--json` for machine-readable output.
 
+## What's inside
+
+| Area | Commands | Library |
+|---|---|---|
+| **Advisory** | `review` (diagnosis, sized opportunities, target state, report), `benchmark`, `types` | `advisory.diagnose`, `advisory.target_state`, `advisory.render_report`, `benchmark.scorecard` |
+| **Issuing** | `pnl`, `rewards`, `activation` | `issuing.card_pnl`, `pnl_bridge`, `portfolio_kpis`, `rewards_programme`, `activation_campaign` |
+| **Acquiring** | `pricing`, `merchant`, `chargebacks`, `merchants` | `acquiring.compare_pricing`, `mdr_split`, `merchant_kpis`, `chargeback_cost`, `merchant_portfolio` |
+| **Risk** | `fraud`, `threshold`, `rollrate`, `vintage`, `provision` | `risk.rule_economics`, `best_threshold`, `rollrate.analyse`, `vintage_curves`, `provision` |
+| **Customer** | `rfm`, `cohort`, `clv`, `experiment`, `sample-size`, `retention` | `customer.rfm`, `cohort_retention`, `lifetime_value`, `two_proportion_test`, `retention_plan` |
+| **Market** | `market`, `wallet` | `market.card_market`, `share_of_wallet` |
+| **Credit** | `credit`, `collect`, `industries` | `credit.decide`, `render_memo`, `monitor` (CreditDecision) |
+| **What-if** | `models`, `sensitivity`, `goalseek`, `simulate` | `whatif.tornado`, `goal_seek`, `simulate` on any model |
+
+Example inputs for every file-based command are in [`examples/`](examples/).
+
+## Library use
+
+```python
+from cardwise.advisory.diagnose import diagnose
+from cardwise.advisory.io import review_from_dict
+from cardwise.advisory.report import render_report
+from cardwise.advisory.target import target_state
+
+d = diagnose(review_from_dict(payload))          # KPIs, P&L, checks, sized opportunities
+plan = target_state(d, {"net_credit_loss_rate": 0.5, "rewards_rate": 1.0})
+markdown = render_report(d, plan)
+
+from cardwise.issuing.pnl import CardEconomics, card_pnl
+from cardwise.whatif.sensitivity import tornado
+
+pnl = card_pnl(CardEconomics(active_accounts=6e5, purchase_volume=6e9,
+                             receivables=2.4e9, revolving_balances=1.2e9))
+```
+
+Every result is a frozen dataclass with `to_dict()`, which is also the `--json` output.
+
+## Project layout
+
+```
+src/cardwise/
+├── core/        errors, validation, formatting, Result, JSON parsing
+├── issuing/     portfolio KPIs, card P&L and bridge, rewards, activation
+├── acquiring/   merchant pricing, merchant KPIs, chargebacks, merchant portfolio
+├── risk/        fraud strategy, roll rates, vintages, provisions
+├── customer/    RFM, cohorts, CLV, experiments, retention offers
+├── market/      market sizing, share of wallet
+├── benchmark/   peer percentiles, indicative KPI ranges by portfolio type
+├── credit/      CreditDecision: decision, memo, monitoring and collections
+├── advisory/    diagnosis, target state, report
+├── whatif/      sensitivity, goal seek, scenarios, Monte Carlo, built-in models
+└── cli.py       one command per analysis
+web/index.html   browser workbench (Pyodide)
+examples/        input files for every file-based command
+docs/            architecture, services catalogue, methodology
+```
+
+Domain packages import only `core`; a test enforces the layering ([docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)).
+
+## Development
+
+```bash
+pip install -e ".[dev]"
+ruff check src tests && ruff format --check src tests
+mypy
+pytest --cov
+```
+
+CI runs lint, `mypy --strict`, tests on Linux, macOS and Windows with Python 3.10 to 3.13 (95% coverage floor), then builds and smoke-tests the wheel. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
