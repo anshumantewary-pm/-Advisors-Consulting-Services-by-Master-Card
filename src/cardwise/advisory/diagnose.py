@@ -66,6 +66,9 @@ class Diagnosis(Result):
     strengths: tuple[str, ...] = field(default=())
 
 
+# KPIs that are results of the others (sizing them too would double-count).
+OUTCOMES = frozenset({"roa"})
+
 LEVERS: dict[str, tuple[str, ...]] = {
     "active_rate": (
         "Early-life activation journey: first-purchase incentive within 30 days",
@@ -86,10 +89,6 @@ LEVERS: dict[str, tuple[str, ...]] = {
         "Rebase earn rates on low-margin categories; cap bonus categories",
         "Shift rewards toward lower-cost partner-funded offers",
         "Increase breakage-neutral redemption options with better unit cost",
-    ),
-    "roa": (
-        "Reprice the back book where risk-adjusted margin is below target",
-        "Cut cost to serve through digital servicing and statement suppression",
     ),
     "approval_rate": (
         "Network tokenisation and account updater for card-on-file payments",
@@ -117,8 +116,6 @@ def _value(key: str, edge: float, actual: float, review: PortfolioReview, pnl: C
         return (actual - edge) * e.receivables
     if key == "rewards_rate":
         return (actual - edge) * e.purchase_volume
-    if key == "roa":
-        return (edge - actual) * e.receivables
     if key == "approval_rate":
         recovered_volume = e.purchase_volume * (edge / actual - 1) if actual else 0.0
         return recovered_volume * (e.interchange_rate - e.network_fee_rate - e.rewards_rate)
@@ -155,6 +152,8 @@ def diagnose(review: PortfolioReview) -> Diagnosis:
         v = values[r.key]
         weak = r.is_weak(v)
         checks.append(Check(r.key, r.label, v, r.low, r.high, r.unit, r.status(v), weak))
+        if weak and r.key in OUTCOMES:
+            continue  # an outcome of the levers below, not a lever: checked, not sized
         if weak:
             edge = r.low if r.higher_is_better else r.high
             opportunities.append(_opportunity(r, v, edge, review, pnl, kpis))
@@ -170,7 +169,7 @@ def diagnose(review: PortfolioReview) -> Diagnosis:
         pnl=pnl,
         checks=tuple(checks),
         opportunities=tuple(opportunities),
-        total_opportunity=sum(o.annual_value for o in opportunities if o.key != "roa"),
+        total_opportunity=sum(o.annual_value for o in opportunities),
         health_score=score,
         strengths=tuple(strengths),
     )

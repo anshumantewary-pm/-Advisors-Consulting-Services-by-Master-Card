@@ -42,7 +42,7 @@ def render_report(d: Diagnosis) -> str:
         lines.append(
             f"{r.name} earns {_money(d, p.pre_tax_profit)} pre-tax on "
             f"{_money(d, k.receivables)} of receivables (ROA {p.roa * 100:.1f}%). "
-            f"{len(d.opportunities)} KPI(s) sit outside the typical range. The largest "
+            f"{len(d.opportunities)} lever(s) sit outside the typical range. The largest "
             "opportunities are:"
         )
         lines += [""] + [

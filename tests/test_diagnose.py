@@ -2,7 +2,7 @@ import dataclasses
 
 import pytest
 
-from cardwise.advisory.diagnose import LEVERS, PortfolioReview, diagnose
+from cardwise.advisory.diagnose import LEVERS, OUTCOMES, PortfolioReview, diagnose
 from cardwise.benchmark.ranges import PORTFOLIO_TYPES
 from cardwise.issuing.pnl import CardEconomics
 
@@ -28,10 +28,10 @@ REVIEW = PortfolioReview(
 )
 
 
-def test_every_kpi_in_every_type_has_levers() -> None:
+def test_every_kpi_in_every_type_has_levers_or_is_an_outcome() -> None:
     for t in PORTFOLIO_TYPES.values():
         for r in t.ranges:
-            assert r.key in LEVERS
+            assert (r.key in LEVERS) != (r.key in OUTCOMES)
 
 
 def test_diagnosis_finds_and_sizes_gaps() -> None:
@@ -52,7 +52,10 @@ def test_diagnosis_finds_and_sizes_gaps() -> None:
     assert values == sorted(values, reverse=True)
     assert 0 <= d.health_score < 50
     assert "fraud_bps" not in weak
-    assert d.total_opportunity > 0
+    assert d.total_opportunity == pytest.approx(sum(o.annual_value for o in d.opportunities))
+    roa = next(c for c in d.checks if c.key == "roa")
+    assert roa.weak
+    assert "roa" not in by_key
     assert all("a year before tax" in o.detail for o in d.opportunities)
 
 
