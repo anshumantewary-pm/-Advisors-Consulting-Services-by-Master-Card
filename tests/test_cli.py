@@ -137,3 +137,45 @@ def test_rewards(capsys: pytest.CaptureFixture[str]) -> None:
         "0.015",
     ]
     assert "never" in run(capsys, *never)
+
+
+def test_pricing(capsys: pytest.CaptureFixture[str]) -> None:
+    args = [
+        "pricing",
+        "--volume",
+        "1e7",
+        "--mix",
+        "debit=0.5:0.002",
+        "--mix",
+        "credit=0.3:0.003",
+        "--mix",
+        "commercial=0.2:0.015",
+        "--scheme-fee",
+        "0.0015",
+        "--blended-mdr",
+        "0.015",
+        "--markup",
+        "0.003",
+    ]
+    out = run(capsys, *args)
+    assert "Blended interchange  0.49%" in out
+    assert "IC++" in out
+    assert (
+        main(
+            [
+                "pricing",
+                "--volume",
+                "1",
+                "--mix",
+                "bad",
+                "--scheme-fee",
+                "0",
+                "--blended-mdr",
+                "0",
+                "--markup",
+                "0",
+            ]
+        )
+        == 2
+    )
+    assert "TYPE=SHARE:RATE" in capsys.readouterr().err

@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from cardwise import __version__
+from cardwise.acquiring.pricing import CardMix, compare_pricing
 from cardwise.advisory.diagnose import diagnose
 from cardwise.advisory.io import review_from_dict
 from cardwise.advisory.report import render_report, render_summary
@@ -189,6 +190,54 @@ def _rewards(p: argparse.ArgumentParser) -> Handler:
             f"Break-even spend lift   {be}",
         ]
         return Output("\n".join(lines), r.to_dict())
+
+    return handle
+
+
+def _parse_mix(items: Sequence[str]) -> list[CardMix]:
+    mix = []
+    for item in items:
+        try:
+            name, rest = item.split("=", 1)
+            share, rate = rest.split(":", 1)
+            mix.append(CardMix(name, float(share), float(rate)))
+        except ValueError:
+            raise ValidationError(f"--mix {item!r} must look like TYPE=SHARE:RATE") from None
+    return mix
+
+
+@command("pricing", "merchant pricing: blended MDR vs interchange++ for a card mix")
+def _pricing(p: argparse.ArgumentParser) -> Handler:
+    p.add_argument("--volume", type=float, required=True, help="annual card sales")
+    p.add_argument(
+        "--mix",
+        action="append",
+        required=True,
+        metavar="TYPE=SHARE:RATE",
+        help="card type, share of volume and interchange rate; repeat per type",
+    )
+    p.add_argument("--scheme-fee", type=float, required=True, help="scheme fees as a rate")
+    p.add_argument("--blended-mdr", type=float, required=True)
+    p.add_argument("--markup", type=float, required=True, help="IC++ acquirer markup as a rate")
+
+    def handle(args: argparse.Namespace) -> Output:
+        c = compare_pricing(
+            args.volume, _parse_mix(args.mix), args.scheme_fee, args.blended_mdr, args.markup
+        )
+        rows = [("Blended", c.blended), ("IC++", c.ic_plus_plus)]
+        lines = [f"Blended interchange  {pct(c.blended_interchange, 2)}", ""]
+        lines.append(f"{'Pricing':<10} {'MDR':>7} {'Merchant cost':>14} {'Acquirer margin':>16}")
+        for label, s in rows:
+            lines.append(
+                f"{label:<10} {pct(s.mdr, 2):>7} {money(s.merchant_cost):>14} "
+                f"{money(s.acquirer_margin):>16}"
+            )
+        lines += [
+            "",
+            f"Merchant saving on IC++   {money(c.merchant_saving)}",
+            f"Markup that keeps margin  {pct(c.equivalent_markup, 2)}",
+        ]
+        return Output("\n".join(lines), c.to_dict())
 
     return handle
 
