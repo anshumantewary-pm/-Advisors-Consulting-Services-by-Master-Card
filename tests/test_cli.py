@@ -358,3 +358,11 @@ def test_market_commands(capsys: pytest.CaptureFixture[str]) -> None:
         "10000",
     )
     assert "Share of wallet    30.0%" in out
+
+
+def test_benchmark(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
+    out = run(capsys, "benchmark", str(EXAMPLES / "peer-benchmark.json"))
+    assert out.splitlines()[1].split()[-1] == "Q4"
+    bad = tmp_path / "b.json"
+    bad.write_text("{}", encoding="utf-8")
+    assert main(["benchmark", str(bad)]) == 2

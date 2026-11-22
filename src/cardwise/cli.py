@@ -24,6 +24,7 @@ from cardwise.acquiring.pricing import CardMix, compare_pricing
 from cardwise.advisory.diagnose import diagnose
 from cardwise.advisory.io import review_from_dict
 from cardwise.advisory.report import render_report, render_summary
+from cardwise.benchmark.peers import scorecard
 from cardwise.benchmark.ranges import PORTFOLIO_TYPES
 from cardwise.core.errors import CardwiseError, ValidationError
 from cardwise.customer.clv import lifetime_value
@@ -636,6 +637,26 @@ def _wallet(p: argparse.ArgumentParser) -> Handler:
             f"Opportunity        {money(w.opportunity_at_target)} at {pct(args.target)}",
         ]
         return Output("\n".join(lines), w.to_dict())
+
+    return handle
+
+
+@command("benchmark", "rank a client against a peer set on every shared KPI (JSON)")
+def _benchmark(p: argparse.ArgumentParser) -> Handler:
+    p.add_argument("file", help="JSON with client, peers, higher_is_better")
+
+    def handle(args: argparse.Namespace) -> Output:
+        body = read_json(args.file)
+        if not isinstance(body, dict) or "client" not in body or "peers" not in body:
+            raise ValidationError(f"{args.file} needs 'client' and 'peers'")
+        rows = scorecard(body["client"], body["peers"], body.get("higher_is_better", {}))
+        lines = [f"{'KPI':<24} {'Client':>10} {'Median':>10} {'Rank':>6} {'Quartile':>9}"]
+        for r in rows:
+            lines.append(
+                f"{r.metric:<24} {r.value:>10.4g} {r.median:>10.4g} "
+                f"{r.percentile_rank * 100:>5.0f}% {'Q' + str(r.quartile):>9}"
+            )
+        return Output("\n".join(lines), [r.to_dict() for r in rows])
 
     return handle
 
