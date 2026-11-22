@@ -20,6 +20,7 @@ from typing import Any
 from cardwise import __version__
 from cardwise.acquiring.chargebacks import chargeback_cost
 from cardwise.acquiring.merchant import merchant_kpis
+from cardwise.acquiring.portfolio import Merchant, merchant_portfolio
 from cardwise.acquiring.pricing import CardMix, compare_pricing
 from cardwise.advisory.diagnose import diagnose
 from cardwise.advisory.io import review_from_dict
@@ -920,6 +921,39 @@ def _retention(p: argparse.ArgumentParser) -> Handler:
             f"{plan.customers_saved:,.0f} customers kept",
         ]
         return Output("\n".join(lines), plan.to_dict())
+
+    return handle
+
+
+@command("merchants", "merchant portfolio profitability and repricing (JSON)")
+def _merchants(p: argparse.ArgumentParser) -> Handler:
+    p.add_argument("file", help="JSON with merchants and target_bps (see examples/)")
+
+    def handle(args: argparse.Namespace) -> Output:
+        body = read_json(args.file)
+        raw = body.get("merchants") if isinstance(body, dict) else None
+        if not isinstance(raw, list):
+            raise ValidationError(f"{args.file} needs a 'merchants' list")
+        merchants = [from_dict(Merchant, m, f"merchants[{i}]") for i, m in enumerate(raw)]
+        target = body.get("target_bps", 0.0)
+        if isinstance(target, bool) or not isinstance(target, (int, float)):
+            raise ValidationError("target_bps must be a number")
+        pf = merchant_portfolio(merchants, float(target))
+        lines = [f"{'Merchant':<18} {'Volume':>9} {'Contribution':>13} {'bp':>6}  Reprice to"]
+        for m in pf.merchants:
+            rep = "" if m.repriced_mdr is None else pct(m.repriced_mdr, 2)
+            lines.append(
+                f"{m.name:<18} {money(m.volume):>9} {money(m.contribution):>13} "
+                f"{m.contribution_bps:>6.1f}  {rep}"
+            )
+        lines += [
+            "",
+            f"Total contribution  {money(pf.total_contribution)} on {money(pf.total_volume)}",
+            f"Loss makers         {', '.join(pf.loss_makers) or 'none'}",
+            f"Repricing uplift    {money(pf.repricing_uplift)} (to {float(target):g} bp)",
+            f"Top-5 concentration {pct(pf.concentration_top5)}",
+        ]
+        return Output("\n".join(lines), pf.to_dict())
 
     return handle
 

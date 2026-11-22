@@ -484,3 +484,12 @@ def test_retention(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
     bad = tmp_path / "b.json"
     bad.write_text("{}", encoding="utf-8")
     assert main(["retention", str(bad)]) == 2
+
+
+def test_merchants(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
+    out = run(capsys, "merchants", str(EXAMPLES / "merchant-portfolio.json"))
+    assert "Repricing uplift" in out
+    bad = tmp_path / "b.json"
+    for body in ("{}", '{"merchants": [], "target_bps": "x"}'):
+        bad.write_text(body, encoding="utf-8")
+        assert main(["merchants", str(bad)]) == 2
