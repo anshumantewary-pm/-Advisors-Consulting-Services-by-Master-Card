@@ -440,3 +440,38 @@ def test_ensure_utf8_reconfigures_narrow_streams() -> None:
     ensure_utf8(stream)
     assert stream.encoding.lower() == "utf-8"
     ensure_utf8(object())  # non-streams are ignored
+
+
+def test_activation(capsys: pytest.CaptureFixture[str]) -> None:
+    out = run(
+        capsys,
+        "activation",
+        "--targeted",
+        "200000",
+        "--response",
+        "0.12",
+        "--control",
+        "0.04",
+        "--contact-cost",
+        "0.5",
+        "--incentive",
+        "25",
+        "--profit",
+        "180",
+    )
+    assert "Payback                  year 1" in out
+    out = run(
+        capsys,
+        "activation",
+        "--targeted",
+        "100",
+        "--response",
+        "0.05",
+        "--control",
+        "0.05",
+        "--incentive",
+        "50",
+        "--profit",
+        "10",
+    )
+    assert "not within horizon" in out

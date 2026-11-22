@@ -42,6 +42,7 @@ from cardwise.customer.clv import lifetime_value
 from cardwise.customer.cohort import cohort_retention
 from cardwise.customer.experiment import sample_size, two_proportion_test
 from cardwise.customer.rfm import Customer, rfm
+from cardwise.issuing.activation import activation_campaign
 from cardwise.issuing.pnl import CardEconomics, card_pnl
 from cardwise.issuing.rewards import rewards_programme
 from cardwise.market.sizing import card_market, share_of_wallet
@@ -851,6 +852,44 @@ def _simulate(p: argparse.ArgumentParser) -> Handler:
             *render_histogram(s.histogram),
         ]
         return Output("\n".join(lines), s.to_dict())
+
+    return handle
+
+
+@command("activation", "is an activation campaign worth it? incremental actives, NPV, payback")
+def _activation(p: argparse.ArgumentParser) -> Handler:
+    p.add_argument("--targeted", type=float, required=True, help="dormant accounts contacted")
+    p.add_argument("--response", type=float, required=True, help="activation rate if targeted")
+    p.add_argument("--control", type=float, default=0.0, help="activation rate if not targeted")
+    p.add_argument("--contact-cost", type=float, default=0.0, help="per account contacted")
+    p.add_argument("--incentive", type=float, default=0.0, help="per account that activates")
+    p.add_argument("--profit", type=float, required=True, help="annual profit of an active")
+    p.add_argument("--retention", type=float, default=0.8, help="share still active each year")
+    p.add_argument("--discount-rate", type=float, default=0.10)
+    p.add_argument("--years", type=int, default=3)
+
+    def handle(args: argparse.Namespace) -> Output:
+        c = activation_campaign(
+            args.targeted,
+            args.response,
+            args.control,
+            args.contact_cost,
+            args.incentive,
+            args.profit,
+            args.retention,
+            args.discount_rate,
+            args.years,
+        )
+        cpi = "n/a" if c.cost_per_incremental is None else money(c.cost_per_incremental)
+        payback = "not within horizon" if c.payback_years is None else f"year {c.payback_years:g}"
+        lines = [
+            f"Incremental activations  {c.incremental_activations:,.0f}",
+            f"Campaign cost            {money(c.campaign_cost)} ({cpi} per incremental active)",
+            f"Value per new active     {money(c.value_per_active)} over {args.years} years",
+            f"Net value                {money(c.net_value)} (ROI {pct(c.roi)})",
+            f"Payback                  {payback}",
+        ]
+        return Output("\n".join(lines), c.to_dict())
 
     return handle
 
