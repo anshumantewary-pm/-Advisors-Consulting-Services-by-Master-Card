@@ -521,3 +521,26 @@ def test_examples_command_lists_runnable_commands(
         argv = [str(tmp_path / a) if a.endswith(".md") else a for a in argv]
         assert main(argv) == 0, cmd
     capsys.readouterr()
+
+
+def test_line_increase(capsys: pytest.CaptureFixture[str]) -> None:
+    out = run(
+        capsys,
+        "line-increase",
+        "--accounts",
+        "50000",
+        "--increase",
+        "2000",
+        "--utilisation",
+        "0.3",
+        "--revolve-share",
+        "0.6",
+        "--apr",
+        "0.22",
+        "--cost-of-funds",
+        "0.045",
+        "--loss-rate",
+        "0.05",
+    )
+    assert "Break-even loss rate" in out
+    assert "Net annual profit" in out

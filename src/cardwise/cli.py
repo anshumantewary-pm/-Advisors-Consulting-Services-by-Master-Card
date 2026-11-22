@@ -46,6 +46,7 @@ from cardwise.customer.experiment import sample_size, two_proportion_test
 from cardwise.customer.retention import RetentionSegment, retention_plan
 from cardwise.customer.rfm import Customer, rfm
 from cardwise.issuing.activation import activation_campaign
+from cardwise.issuing.line_increase import line_increase
 from cardwise.issuing.pnl import CardEconomics, card_pnl
 from cardwise.issuing.rewards import rewards_programme
 from cardwise.market.sizing import card_market, share_of_wallet
@@ -1019,6 +1020,46 @@ def _examples(p: argparse.ArgumentParser) -> Handler:
         lines = ["Run these from the repository root:", ""]
         lines += [f"  {cmd}" for _, cmd in EXAMPLES]
         return Output("\n".join(lines), [{"file": f, "command": c} for f, c in EXAMPLES])
+
+    return handle
+
+
+@command("line-increase", "credit line increase economics: profit and break-even loss rate")
+def _line_increase(p: argparse.ArgumentParser) -> Handler:
+    p.add_argument("--accounts", type=float, required=True, help="accounts given an increase")
+    p.add_argument("--increase", type=float, required=True, help="extra limit per account")
+    p.add_argument("--utilisation", type=float, required=True, help="share of new limit drawn")
+    p.add_argument("--revolve-share", type=float, required=True, help="share that pays interest")
+    p.add_argument("--apr", type=float, required=True)
+    p.add_argument("--cost-of-funds", type=float, required=True)
+    p.add_argument("--loss-rate", type=float, required=True, help="loss rate on new balances")
+    p.add_argument("--existing-balance", type=float, default=0.0, help="per account")
+    p.add_argument("--loss-uplift", type=float, default=0.0, help="on existing balances")
+    p.add_argument("--extra-spend", type=float, default=0.0, help="per account per year")
+    p.add_argument("--interchange", type=float, default=0.0)
+
+    def handle(args: argparse.Namespace) -> Output:
+        r = line_increase(
+            args.accounts,
+            args.increase,
+            args.utilisation,
+            args.revolve_share,
+            args.apr,
+            args.cost_of_funds,
+            args.loss_rate,
+            args.existing_balance,
+            args.loss_uplift,
+            args.extra_spend,
+            args.interchange,
+        )
+        lines = [f"{s.label:<38} {money(s.value):>10}" for s in r.steps]
+        lines += [
+            "",
+            f"New balances                           {money(r.new_balances):>10}",
+            f"Profit per account                     {money(r.profit_per_account):>10}",
+            f"Break-even loss rate on new balances   {pct(r.break_even_loss_rate, 2):>10}",
+        ]
+        return Output("\n".join(lines), r.to_dict())
 
     return handle
 
