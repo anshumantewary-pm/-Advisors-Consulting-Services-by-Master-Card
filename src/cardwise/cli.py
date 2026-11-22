@@ -24,6 +24,7 @@ from cardwise.acquiring.pricing import CardMix, compare_pricing
 from cardwise.advisory.diagnose import diagnose
 from cardwise.advisory.io import review_from_dict
 from cardwise.advisory.report import render_report, render_summary
+from cardwise.advisory.target import target_state
 from cardwise.benchmark.peers import scorecard
 from cardwise.benchmark.ranges import PORTFOLIO_TYPES
 from cardwise.core.errors import CardwiseError, ValidationError
@@ -120,15 +121,23 @@ def pct(value: float | None, digits: int = 1) -> str:
 def _review(p: argparse.ArgumentParser) -> Handler:
     p.add_argument("file", help="portfolio review JSON (see examples/portfolio-review.json)")
     p.add_argument("--report", metavar="PATH", help="write the Markdown report; '-' prints it")
+    p.add_argument(
+        "--achievement",
+        type=float,
+        default=0.5,
+        help="share of each gap closed in the target state (default 0.5)",
+    )
 
     def handle(args: argparse.Namespace) -> Output:
         d = diagnose(review_from_dict(read_json(args.file)))
-        md = render_report(d)
+        target = target_state(d, args.achievement)
+        md = render_report(d, target)
         text = md if args.report == "-" else render_summary(d)
         if args.report and args.report != "-":
             write_text(args.report, md)
             text += f"\n\nReport written to {args.report}"
         data = d.to_dict()
+        data["target_state"] = target.to_dict()
         data["report_markdown"] = md
         return Output(text, data)
 

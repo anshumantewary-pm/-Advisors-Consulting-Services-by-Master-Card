@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from cardwise.advisory.diagnose import Check, Diagnosis
+from cardwise.advisory.target import TargetState
 
 
 def _money(d: Diagnosis, value: float) -> str:
@@ -26,7 +27,7 @@ def _table(header: list[str], rows: list[list[str]]) -> list[str]:
     return out + ["| " + " | ".join(r) + " |" for r in rows]
 
 
-def render_report(d: Diagnosis) -> str:
+def render_report(d: Diagnosis, target: TargetState | None = None) -> str:
     r, k, p = d.review, d.kpis, d.pnl
     top = d.opportunities[:3]
     lines = [
@@ -96,8 +97,30 @@ def render_report(d: Diagnosis) -> str:
     for i, o in enumerate(d.opportunities, 1):
         lines += [f"### 5.{i} {o.title} ({_money(d, o.annual_value)} a year)", "", o.detail, ""]
         lines += [f"- {lever}" for lever in o.levers] + [""]
+    if target is not None and d.opportunities:
+        b = target.bridge
+        shares = sorted(set(target.achievement.values()))
+        closed = f"{shares[0] * 100:.0f}%" if len(shares) == 1 else "the stated share"
+        lines += [
+            "## 6. Target state",
+            "",
+            f"Closing {closed} of each gap together (the P&L is recomputed, so overlapping "
+            f"levers are not double-counted) moves pre-tax profit from {_money(d, b.before)} to "
+            f"{_money(d, b.after)} and ROA from {target.roa_before * 100:.1f}% to "
+            f"{target.roa_after * 100:.1f}%.",
+            "",
+        ]
+        lines += _table(
+            ["Driver", "Profit impact"],
+            [
+                [k.replace("_", " ").capitalize(), _money(d, v)]
+                for k, v in b.drivers.items()
+                if abs(v) > 0.5
+            ],
+        )
+        lines.append("")
     if d.strengths:
-        lines += ["## 6. Strengths", ""] + [f"- {s}" for s in d.strengths] + [""]
+        lines += ["## 7. Strengths", ""] + [f"- {s}" for s in d.strengths] + [""]
     lines += [
         "---",
         "_Ranges are indicative screening benchmarks, not market data for a specific issuer, "

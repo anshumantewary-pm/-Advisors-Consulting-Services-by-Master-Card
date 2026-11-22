@@ -41,6 +41,18 @@ def test_report_for_a_strong_portfolio() -> None:
     md = render_report(d)
     assert "every KPI checked is within" in md
     assert "No KPI gaps" in md
-    assert "## 6. Strengths" in md
+    assert "## 7. Strengths" in md
     assert "€" in md
     assert "Top opportunities" not in render_summary(d)
+
+
+def test_report_with_target_state() -> None:
+    from cardwise.advisory.target import target_state
+
+    d = diagnose(REVIEW)
+    md = render_report(d, target_state(d, 0.5))
+    assert "## 6. Target state" in md
+    assert "Closing 50% of each gap" in md
+    mixed = render_report(d, target_state(d, {"rewards_rate": 1.0}))
+    assert "the stated share" in mixed
+    assert "Rewards cost" in mixed

@@ -67,6 +67,17 @@ def test_review(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
     assert isinstance(data, dict)
     assert data["opportunities"]
     assert data["report_markdown"].startswith("# Portfolio review")
+    assert data["target_state"]["bridge"]["change"] > 0
+    full = run(
+        capsys,
+        "review",
+        str(EXAMPLES / "portfolio-review.json"),
+        "--achievement",
+        "1",
+        "--report",
+        "-",
+    )
+    assert "Closing 100% of each gap" in full
 
 
 def test_types(capsys: pytest.CaptureFixture[str]) -> None:
