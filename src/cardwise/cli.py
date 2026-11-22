@@ -19,6 +19,7 @@ from typing import Any
 
 from cardwise import __version__
 from cardwise.acquiring.chargebacks import chargeback_cost
+from cardwise.acquiring.enhanced_data import enhanced_data_savings
 from cardwise.acquiring.merchant import merchant_kpis
 from cardwise.acquiring.portfolio import Merchant, merchant_portfolio
 from cardwise.acquiring.pricing import CardMix, compare_pricing
@@ -1060,6 +1061,42 @@ def _line_increase(p: argparse.ArgumentParser) -> Handler:
             f"Break-even loss rate on new balances   {pct(r.break_even_loss_rate, 2):>10}",
         ]
         return Output("\n".join(lines), r.to_dict())
+
+    return handle
+
+
+@command("enhanced-data", "interchange saving from passing Level 2/3 data on commercial cards")
+def _enhanced_data(p: argparse.ArgumentParser) -> Handler:
+    p.add_argument("--volume", type=float, required=True, help="annual commercial card volume")
+    p.add_argument("--standard-rate", type=float, required=True)
+    p.add_argument("--level2-rate", type=float, required=True)
+    p.add_argument("--level3-rate", type=float, required=True)
+    p.add_argument("--l2-today", type=float, default=0.0, help="share qualifying for L2 today")
+    p.add_argument("--l3-today", type=float, default=0.0)
+    p.add_argument("--l2-after", type=float, required=True, help="share qualifying after")
+    p.add_argument("--l3-after", type=float, required=True)
+    p.add_argument("--implementation-cost", type=float, default=0.0)
+
+    def handle(args: argparse.Namespace) -> Output:
+        s = enhanced_data_savings(
+            args.volume,
+            args.standard_rate,
+            args.level2_rate,
+            args.level3_rate,
+            args.l2_today,
+            args.l3_today,
+            args.l2_after,
+            args.l3_after,
+            args.implementation_cost,
+        )
+        payback = "n/a" if s.payback_months is None else f"{s.payback_months:.1f} months"
+        lines = [
+            f"Effective rate today   {pct(s.effective_rate_today, 3)}",
+            f"Effective rate after   {pct(s.effective_rate_after, 3)}",
+            f"Annual saving          {money(s.annual_saving)}",
+            f"Payback                {payback}",
+        ]
+        return Output("\n".join(lines), s.to_dict())
 
     return handle
 

@@ -544,3 +544,28 @@ def test_line_increase(capsys: pytest.CaptureFixture[str]) -> None:
     )
     assert "Break-even loss rate" in out
     assert "Net annual profit" in out
+
+
+def test_enhanced_data(capsys: pytest.CaptureFixture[str]) -> None:
+    out = run(
+        capsys,
+        "enhanced-data",
+        "--volume",
+        "2e7",
+        "--standard-rate",
+        "0.025",
+        "--level2-rate",
+        "0.02",
+        "--level3-rate",
+        "0.016",
+        "--l2-today",
+        "0.1",
+        "--l2-after",
+        "0.3",
+        "--l3-after",
+        "0.5",
+        "--implementation-cost",
+        "60000",
+    )
+    assert "Payback" in out
+    assert "months" in out
