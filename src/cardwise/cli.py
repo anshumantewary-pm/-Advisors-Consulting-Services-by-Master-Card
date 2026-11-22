@@ -47,6 +47,11 @@ from cardwise.market.sizing import card_market, share_of_wallet
 from cardwise.risk.fraud import Scored, best_threshold, rule_economics
 from cardwise.risk.rollrate import BUCKETS, analyse
 from cardwise.risk.vintage import Vintage, vintage_curves
+from cardwise.whatif.distributions import parse_distribution
+from cardwise.whatif.goal_seek import goal_seek
+from cardwise.whatif.models import MODELS, BuiltinModel, get_model
+from cardwise.whatif.montecarlo import render_histogram, simulate
+from cardwise.whatif.sensitivity import tornado
 
 
 @dataclass(frozen=True)
@@ -709,6 +714,134 @@ def _industries(p: argparse.ArgumentParser) -> Handler:
             for i in INDUSTRIES.values()
         ]
         return Output("\n".join(lines), {k: i.to_dict() for k, i in INDUSTRIES.items()})
+
+    return handle
+
+
+def _split(item: str, flag: str) -> tuple[str, str]:
+    name, sep, value = item.partition("=")
+    if not sep or not name:
+        raise ValidationError(f"{flag} {item!r} must look like NAME=VALUE")
+    return name, value
+
+
+def _base(m: BuiltinModel, overrides: Sequence[str]) -> dict[str, float]:
+    base = dict(m.defaults)
+    for item in overrides:
+        name, value = _split(item, "--set")
+        if name not in base:
+            raise ValidationError(f"model {m.name!r} has no input {name!r}")
+        try:
+            base[name] = float(value)
+        except ValueError:
+            raise ValidationError(f"--set {item!r}: {value!r} is not a number") from None
+    return base
+
+
+def _bracket(text: str, flag: str) -> tuple[float, float]:
+    try:
+        low, high = (float(x) for x in text.split(":"))
+    except ValueError:
+        raise ValidationError(f"{flag} must look like LOW:HIGH") from None
+    return low, high
+
+
+@command("models", "list built-in what-if models and their default inputs")
+def _models(p: argparse.ArgumentParser) -> Handler:
+    def handle(args: argparse.Namespace) -> Output:
+        lines = []
+        for m in MODELS.values():
+            lines.append(f"{m.name:<10} {m.description} (output: {m.output})")
+            lines += [f"    {k} = {v:,.10g}" for k, v in m.defaults.items()]
+        data = {
+            k: {"description": m.description, "defaults": dict(m.defaults)}
+            for k, m in MODELS.items()
+        }
+        return Output("\n".join(lines), data)
+
+    return handle
+
+
+def _model_args(p: argparse.ArgumentParser) -> None:
+    p.add_argument("model", choices=list(MODELS), help="built-in model (see 'models')")
+    p.add_argument("--set", action="append", default=[], metavar="NAME=VALUE")
+
+
+@command("sensitivity", "tornado: which inputs move a model's output most")
+def _sensitivity(p: argparse.ArgumentParser) -> Handler:
+    _model_args(p)
+    p.add_argument("--range", action="append", default=[], metavar="NAME=LOW:HIGH")
+    p.add_argument("--pct", type=float, default=0.10, help="swing when no --range (default 0.1)")
+
+    def handle(args: argparse.Namespace) -> Output:
+        m = get_model(args.model)
+        base = _base(m, args.set)
+        ranges = {}
+        for item in args.range:
+            name, value = _split(item, "--range")
+            ranges[name] = _bracket(value, "--range")
+        t = tornado(m.fn, base, ranges or None, args.pct)
+        lines = [f"Base {m.output}: {money(t.base_output)}", ""]
+        for b in t.bars:
+            lines.append(
+                f"{b.input:<24} {money(b.output_at_low):>10} .. "
+                f"{money(b.output_at_high):>10}   swing {money(b.swing)}"
+            )
+        data = t.to_dict()
+        data["most_sensitive"] = t.most_sensitive
+        return Output("\n".join(lines), data)
+
+    return handle
+
+
+@command("goalseek", "find the input value that makes a model hit a target")
+def _goalseek(p: argparse.ArgumentParser) -> Handler:
+    _model_args(p)
+    p.add_argument("--vary", required=True, metavar="NAME")
+    p.add_argument("--target", type=float, default=0.0)
+    p.add_argument("--between", required=True, metavar="LOW:HIGH")
+
+    def handle(args: argparse.Namespace) -> Output:
+        m = get_model(args.model)
+        low, high = _bracket(args.between, "--between")
+        g = goal_seek(m.fn, _base(m, args.set), args.vary, args.target, low, high)
+        text = f"{g.input} = {g.value:,.6g} gives {m.output} {money(g.output)}"
+        return Output(text, g.to_dict())
+
+    return handle
+
+
+@command("simulate", "Monte Carlo: uncertain inputs give a range of outcomes")
+def _simulate(p: argparse.ArgumentParser) -> Handler:
+    _model_args(p)
+    p.add_argument(
+        "--dist",
+        action="append",
+        default=[],
+        metavar="NAME=SPEC",
+        help="e.g. net_credit_loss_rate=tri:0.03:0.035:0.06",
+    )
+    p.add_argument("--runs", type=int, default=10_000)
+    p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--threshold", type=float, default=0.0)
+
+    def handle(args: argparse.Namespace) -> Output:
+        m = get_model(args.model)
+        inputs: dict[str, object] = dict(_base(m, args.set))
+        for item in args.dist:
+            name, spec = _split(item, "--dist")
+            if name not in inputs:
+                raise ValidationError(f"model {m.name!r} has no input {name!r}")
+            inputs[name] = parse_distribution(spec)
+        s = simulate(m.fn, inputs, args.runs, args.seed, args.threshold)  # type: ignore[arg-type]
+        lines = [
+            f"Mean {m.output}     {money(s.mean)}",
+            f"90% band          {money(s.band_90[0])} to {money(s.band_90[1])}",
+            f"P(< {args.threshold:g})        {pct(s.prob_below_threshold)}",
+            "",
+            *render_histogram(s.histogram),
+        ]
+        return Output("\n".join(lines), s.to_dict())
 
     return handle
 

@@ -382,3 +382,39 @@ def test_credit_commands(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> 
     assert data["decision"] == "Decline"  # type: ignore[index]
     assert "RECOVER" in run(capsys, "collect", str(credit / "meridian-default.json"))
     assert "manufacturing" in run(capsys, "industries")
+
+
+def test_whatif_commands(capsys: pytest.CaptureFixture[str]) -> None:
+    assert "card" in run(capsys, "models")
+    data = run_json(capsys, "sensitivity", "card")
+    assert isinstance(data, dict)
+    assert data["most_sensitive"]
+    out = run(capsys, "sensitivity", "card", "--range", "apr=0.15:0.25", "--set", "apr=0.2")
+    assert "apr" in out
+    out = run(capsys, "goalseek", "card", "--vary", "net_credit_loss_rate", "--between", "0:0.5")
+    assert "net_credit_loss_rate" in out
+    out = run(
+        capsys,
+        "simulate",
+        "card",
+        "--dist",
+        "net_credit_loss_rate=tri:0.03:0.035:0.08",
+        "--runs",
+        "500",
+    )
+    assert "90% band" in out
+
+
+@pytest.mark.parametrize(
+    ("argv", "message"),
+    [
+        (["sensitivity", "card", "--set", "nope=1"], "no input"),
+        (["sensitivity", "card", "--set", "apr=x"], "not a number"),
+        (["sensitivity", "card", "--set", "apr"], "NAME=VALUE"),
+        (["sensitivity", "card", "--range", "apr=1"], "LOW:HIGH"),
+        (["simulate", "card", "--dist", "nope=uniform:1:2"], "no input"),
+    ],
+)
+def test_whatif_errors(capsys: pytest.CaptureFixture[str], argv: list[str], message: str) -> None:
+    assert main(argv) == 2
+    assert message in capsys.readouterr().err
