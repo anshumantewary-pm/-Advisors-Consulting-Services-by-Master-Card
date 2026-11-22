@@ -366,3 +366,19 @@ def test_benchmark(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
     bad = tmp_path / "b.json"
     bad.write_text("{}", encoding="utf-8")
     assert main(["benchmark", str(bad)]) == 2
+
+
+def test_credit_commands(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
+    credit = EXAMPLES / "credit"
+    out = run(capsys, "credit", str(credit / "northwind-industrial.json"))
+    assert "Decision        Approve" in out
+    memo = tmp_path / "memo.md"
+    out = run(capsys, "credit", str(credit / "coastal-retail.json"), "--memo", str(memo))
+    assert memo.read_text(encoding="utf-8").startswith("# Credit Memo")
+    assert "# Credit Memo" in run(
+        capsys, "credit", str(credit / "meridian-energy.json"), "--memo", "-"
+    )
+    data = run_json(capsys, "credit", str(credit / "meridian-energy.json"))
+    assert data["decision"] == "Decline"  # type: ignore[index]
+    assert "RECOVER" in run(capsys, "collect", str(credit / "meridian-default.json"))
+    assert "manufacturing" in run(capsys, "industries")

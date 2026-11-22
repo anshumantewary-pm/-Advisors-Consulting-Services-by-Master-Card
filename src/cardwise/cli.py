@@ -27,6 +27,16 @@ from cardwise.advisory.report import render_report, render_summary
 from cardwise.benchmark.peers import scorecard
 from cardwise.benchmark.ranges import PORTFOLIO_TYPES
 from cardwise.core.errors import CardwiseError, ValidationError
+from cardwise.credit import (
+    INDUSTRIES,
+    borrower_from_dict,
+    decide,
+    monitor,
+    render_memo,
+    render_monitoring,
+    status_from_dict,
+)
+from cardwise.credit import render_summary as credit_summary
 from cardwise.customer.clv import lifetime_value
 from cardwise.customer.cohort import cohort_retention
 from cardwise.customer.experiment import sample_size, two_proportion_test
@@ -657,6 +667,48 @@ def _benchmark(p: argparse.ArgumentParser) -> Handler:
                 f"{r.percentile_rank * 100:>5.0f}% {'Q' + str(r.quartile):>9}"
             )
         return Output("\n".join(lines), [r.to_dict() for r in rows])
+
+    return handle
+
+
+@command("credit", "CreditDecision: borrower file in, lending decision and credit memo out")
+def _credit(p: argparse.ArgumentParser) -> Handler:
+    p.add_argument("file", help="borrower JSON (see examples/credit/)")
+    p.add_argument("--memo", metavar="PATH", help="write the credit memo (Markdown); '-' prints it")
+
+    def handle(args: argparse.Namespace) -> Output:
+        decision = decide(borrower_from_dict(read_json(args.file)))
+        memo = render_memo(decision)
+        text = memo if args.memo == "-" else credit_summary(decision)
+        if args.memo and args.memo != "-":
+            write_text(args.memo, memo)
+            text += f"\n\nCredit memo written to {args.memo}"
+        data = decision.to_dict()
+        data["memo_markdown"] = memo
+        return Output(text, data)
+
+    return handle
+
+
+@command("collect", "monitor a live facility: early warnings, staging, workout plan")
+def _collect(p: argparse.ArgumentParser) -> Handler:
+    p.add_argument("file", help="facility status JSON (see examples/credit/)")
+
+    def handle(args: argparse.Namespace) -> Output:
+        result = monitor(status_from_dict(read_json(args.file)))
+        return Output(render_monitoring(result), result.to_dict())
+
+    return handle
+
+
+@command("industries", "list industries and leverage ceilings used by 'credit'")
+def _industries(p: argparse.ArgumentParser) -> Handler:
+    def handle(args: argparse.Namespace) -> Output:
+        lines = [
+            f"{i.key:<18} {i.name:<38} risk {i.risk}/5  max leverage {i.max_leverage:.1f}x"
+            for i in INDUSTRIES.values()
+        ]
+        return Output("\n".join(lines), {k: i.to_dict() for k, i in INDUSTRIES.items()})
 
     return handle
 
