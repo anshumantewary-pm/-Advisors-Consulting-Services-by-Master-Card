@@ -493,3 +493,16 @@ def test_merchants(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
     for body in ("{}", '{"merchants": [], "target_bps": "x"}'):
         bad.write_text(body, encoding="utf-8")
         assert main(["merchants", str(bad)]) == 2
+
+
+def test_provision(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
+    out = run(capsys, "provision", str(EXAMPLES / "provision.json"))
+    assert "IFRS 9 ECL" in out
+    assert "stage 3" in out
+    bad = tmp_path / "b.json"
+    bad.write_text('{"balances": {}}', encoding="utf-8")
+    assert main(["provision", str(bad)]) == 2
+    bad.write_text(
+        '{"balances": {"current": 0}, "pd_12m": {"current": 0.1}, "lgd": 0.5}', encoding="utf-8"
+    )
+    assert "n/a" in run(capsys, "provision", str(bad))

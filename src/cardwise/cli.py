@@ -50,6 +50,7 @@ from cardwise.issuing.pnl import CardEconomics, card_pnl
 from cardwise.issuing.rewards import rewards_programme
 from cardwise.market.sizing import card_market, share_of_wallet
 from cardwise.risk.fraud import Scored, best_threshold, rule_economics
+from cardwise.risk.provision import provision
 from cardwise.risk.rollrate import BUCKETS, analyse
 from cardwise.risk.vintage import Vintage, vintage_curves
 from cardwise.whatif.distributions import parse_distribution
@@ -954,6 +955,32 @@ def _merchants(p: argparse.ArgumentParser) -> Handler:
             f"Top-5 concentration {pct(pf.concentration_top5)}",
         ]
         return Output("\n".join(lines), pf.to_dict())
+
+    return handle
+
+
+@command("provision", "card loss provisions: IFRS 9 stages and lifetime view (JSON)")
+def _provision(p: argparse.ArgumentParser) -> Handler:
+    p.add_argument("file", help="JSON with balances, pd_12m, lgd (examples/provision.json)")
+
+    def handle(args: argparse.Namespace) -> Output:
+        body = read_json(args.file)
+        if not isinstance(body, dict) or not {"balances", "pd_12m", "lgd"} <= set(body):
+            raise ValidationError(f"{args.file} needs balances, pd_12m and lgd")
+        pv = provision(
+            body["balances"], body["pd_12m"], body["lgd"], body.get("lifetime_years", 2.5)
+        )
+        lines = [f"{'Stage':<8} {'Balances':>10} {'ECL':>10} {'Coverage':>9}"]
+        for s in ("stage 1", "stage 2", "stage 3"):
+            bal, ecl = pv.stage_balances[s], pv.stage_ecl[s]
+            cov = pct(ecl / bal) if bal else "n/a"
+            lines.append(f"{s:<8} {money(bal):>10} {money(ecl):>10} {cov:>9}")
+        lines += [
+            "",
+            f"IFRS 9 ECL        {money(pv.ifrs9_ecl)} ({pct(pv.coverage, 2)} of balances)",
+            f"Lifetime (CECL)   {money(pv.lifetime_ecl)} ({pct(pv.lifetime_coverage, 2)})",
+        ]
+        return Output("\n".join(lines), pv.to_dict())
 
     return handle
 
