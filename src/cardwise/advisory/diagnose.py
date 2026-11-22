@@ -179,8 +179,6 @@ def diagnose(review: PortfolioReview) -> Diagnosis:
 def _fmt(r: KPIRange, v: float) -> str:
     if r.unit == "bp":
         return f"{v:.1f} bp"
-    if r.unit == "x":
-        return f"{v:.2f}x"
     return f"{v * 100:.1f}%"
 
 

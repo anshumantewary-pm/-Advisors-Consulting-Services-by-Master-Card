@@ -22,7 +22,7 @@ class KPIRange(Result):
     low: float
     high: float
     higher_is_better: bool
-    unit: str = "%"  # "%" for fractions, "bp" for basis points, "x" for ratios
+    unit: str = "%"  # "%" for fractions, "bp" for basis points
 
     def status(self, value: float) -> str:
         """ "below", "within" or "above" the range."""

@@ -75,3 +75,10 @@ def test_strong_portfolio_has_strengths_and_no_gaps() -> None:
 def test_optional_inputs_are_skipped() -> None:
     d = diagnose(dataclasses.replace(REVIEW, approval_rate=None, fraud_losses=None))
     assert {"approval_rate", "fraud_bps"}.isdisjoint(c.key for c in d.checks)
+
+
+def test_high_fraud_is_sized_in_basis_points() -> None:
+    d = diagnose(dataclasses.replace(REVIEW, fraud_losses=6e6))  # 12 bp vs an 8 bp ceiling
+    fraud = next(o for o in d.opportunities if o.key == "fraud_bps")
+    assert fraud.annual_value == pytest.approx(4 / 1e4 * 5e9)
+    assert "12.0 bp" in fraud.detail

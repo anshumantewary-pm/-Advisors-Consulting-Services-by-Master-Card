@@ -39,6 +39,7 @@ addopts = "-ra --strict-markers"
 [tool.coverage.run]
 source = ["cardwise"]
 branch = true
+omit = ["*/cardwise/__main__.py"]  # exercised in a subprocess by test_cli
 
 [tool.coverage.report]
 fail_under = 95

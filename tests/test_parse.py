@@ -44,3 +44,11 @@ def test_builds_and_coerces() -> None:
 def test_errors(data: object, message: str) -> None:
     with pytest.raises(ValidationError, match=message):
         from_dict(Thing, data)
+
+
+def test_non_scalar_fields_pass_through() -> None:
+    @dataclass(frozen=True)
+    class WithMap:
+        values: dict[str, float]
+
+    assert from_dict(WithMap, {"values": {"a": 1.0}}).values == {"a": 1.0}

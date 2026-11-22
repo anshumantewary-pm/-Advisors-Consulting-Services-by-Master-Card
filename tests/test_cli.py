@@ -418,3 +418,14 @@ def test_whatif_commands(capsys: pytest.CaptureFixture[str]) -> None:
 def test_whatif_errors(capsys: pytest.CaptureFixture[str], argv: list[str], message: str) -> None:
     assert main(argv) == 2
     assert message in capsys.readouterr().err
+
+
+def test_ensure_utf8_reconfigures_narrow_streams() -> None:
+    import io
+
+    from cardwise.cli import ensure_utf8
+
+    stream = io.TextIOWrapper(io.BytesIO(), encoding="cp1252")
+    ensure_utf8(stream)
+    assert stream.encoding.lower() == "utf-8"
+    ensure_utf8(object())  # non-streams are ignored
