@@ -61,6 +61,17 @@ cardwise --help                                                      # every com
 
 Every command takes `--json` for machine-readable output.
 
+## Documentation
+
+| Read this | For |
+|---|---|
+| [docs/SERVICES.md](docs/SERVICES.md) | Which engagement each tool supports, and the deliverable it produces |
+| [docs/CASE-STUDY.md](docs/CASE-STUDY.md) | A worked engagement: P&L bridge, diagnosis, sensitivity, business case, target state |
+| [docs/samples/](docs/samples/) | A generated client report and credit memo |
+| [docs/METHODOLOGY.md](docs/METHODOLOGY.md) | The formula behind every figure |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Layers, design rules, data flow, CI/CD |
+| [CHANGELOG.md](CHANGELOG.md) | What is in each release |
+
 ## What's inside
 
 | Area | Commands | Library |
