@@ -26,7 +26,9 @@ from cardwise.advisory.io import review_from_dict
 from cardwise.advisory.report import render_report, render_summary
 from cardwise.benchmark.ranges import PORTFOLIO_TYPES
 from cardwise.core.errors import CardwiseError, ValidationError
+from cardwise.customer.clv import lifetime_value
 from cardwise.customer.cohort import cohort_retention
+from cardwise.customer.experiment import sample_size, two_proportion_test
 from cardwise.customer.rfm import Customer, rfm
 from cardwise.issuing.pnl import CardEconomics, card_pnl
 from cardwise.issuing.rewards import rewards_programme
@@ -512,6 +514,76 @@ def _cohort(p: argparse.ArgumentParser) -> Handler:
             lines.append(f"{c:<6} {t.sizes[c]:>5}  {cells}")
         lines.append("Avg          " + "  ".join(f"{v * 100:4.0f}%" for v in t.average))
         return Output("\n".join(lines), t.to_dict())
+
+    return handle
+
+
+@command("clv", "customer lifetime value and the most you should pay to acquire one")
+def _clv(p: argparse.ArgumentParser) -> Handler:
+    p.add_argument("--margin", type=float, required=True, help="annual margin per customer")
+    p.add_argument("--retention", type=float, required=True, help="annual retention, 0..1")
+    p.add_argument("--discount-rate", type=float, default=0.10)
+    p.add_argument("--ltv-cac", type=float, default=3.0, help="target LTV:CAC ratio")
+
+    def handle(args: argparse.Namespace) -> Output:
+        v = lifetime_value(args.margin, args.retention, args.discount_rate, args.ltv_cac)
+        lines = [
+            f"Expected lifetime     {v.expected_lifetime_years:.1f} years",
+            f"Lifetime value        {money(v.clv)}",
+            f"Max acquisition cost  {money(v.max_acquisition_cost)} (at {args.ltv_cac:g}:1)",
+        ]
+        data = v.to_dict()
+        for k in ("expected_lifetime_years", "clv", "max_acquisition_cost"):
+            if data[k] == float("inf"):
+                data[k] = None
+        return Output("\n".join(lines), data)
+
+    return handle
+
+
+@command("experiment", "read a campaign test vs control: lift, significance, value")
+def _experiment(p: argparse.ArgumentParser) -> Handler:
+    p.add_argument("--test", required=True, metavar="SIZE,CONVERSIONS")
+    p.add_argument("--control", required=True, metavar="SIZE,CONVERSIONS")
+    p.add_argument("--confidence", type=float, default=0.95)
+    p.add_argument("--value", type=float, default=0.0, help="value per extra conversion")
+
+    def handle(args: argparse.Namespace) -> Output:
+        def pair(text: str, flag: str) -> tuple[float, float]:
+            try:
+                a, b = (float(x) for x in text.split(","))
+            except ValueError:
+                raise ValidationError(f"{flag} must look like SIZE,CONVERSIONS") from None
+            return a, b
+
+        (nt, xt), (nc, xc) = pair(args.test, "--test"), pair(args.control, "--control")
+        r = two_proportion_test(nt, xt, nc, xc, args.confidence, args.value)
+        verdict = "significant" if r.significant else "not significant"
+        lines = [
+            f"Test rate        {pct(r.test_rate, 2)}",
+            f"Control rate     {pct(r.control_rate, 2)}",
+            f"Lift             {pct(r.absolute_lift, 2)} ({pct(r.relative_lift)} relative)",
+            f"{args.confidence:.0%} CI         {pct(r.ci_low, 2)} to {pct(r.ci_high, 2)}",
+            f"p-value          {r.p_value:.4f} ({verdict})",
+            f"Extra responders {r.incremental_responders:,.0f}",
+            f"Extra value      {money(r.incremental_value)}",
+        ]
+        return Output("\n".join(lines), r.to_dict())
+
+    return handle
+
+
+@command("sample-size", "customers needed per group to detect a lift")
+def _sample_size(p: argparse.ArgumentParser) -> Handler:
+    p.add_argument("--baseline", type=float, required=True, help="control response rate")
+    p.add_argument("--lift", type=float, required=True, help="smallest absolute lift to detect")
+    p.add_argument("--confidence", type=float, default=0.95)
+    p.add_argument("--power", type=float, default=0.8)
+
+    def handle(args: argparse.Namespace) -> Output:
+        n = sample_size(args.baseline, args.lift, args.confidence, args.power)
+        text = f"{n:,} customers per group ({2 * n:,} in total)"
+        return Output(text, {"per_group": n, "total": 2 * n})
 
     return handle
 

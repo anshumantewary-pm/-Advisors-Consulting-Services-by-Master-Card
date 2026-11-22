@@ -309,3 +309,16 @@ def test_customer_files(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> N
     assert main(["rfm", str(bad)]) == 2
     bad.write_text("customer_id,cohort,active_period\nx,a,1\n", encoding="utf-8")
     assert main(["cohort", str(bad)]) == 2
+
+
+def test_customer_value_commands(capsys: pytest.CaptureFixture[str]) -> None:
+    assert "Lifetime value" in run(capsys, "clv", "--margin", "200", "--retention", "0.85")
+    data = run_json(capsys, "clv", "--margin", "100", "--retention", "1", "--discount-rate", "0")
+    assert data["clv"] is None  # type: ignore[index]
+    out = run(
+        capsys, "experiment", "--test", "10000,1200", "--control", "10000,1000", "--value", "50"
+    )
+    assert "significant" in out
+    assert main(["experiment", "--test", "x", "--control", "1,1"]) == 2
+    assert "SIZE,CONVERSIONS" in capsys.readouterr().err
+    assert "per group" in run(capsys, "sample-size", "--baseline", "0.1", "--lift", "0.02")
