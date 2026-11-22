@@ -595,6 +595,7 @@ def test_bridge(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
     out = run(capsys, "bridge", str(EXAMPLES / "pnl-bridge.json"))
     assert "credit losses" in out
     assert out.splitlines()[2].strip().startswith("credit losses")  # biggest drag first
+    assert "+4.5M" in out
     bad = tmp_path / "b.json"
     bad.write_text('{"before": {}}', encoding="utf-8")
     assert main(["bridge", str(bad)]) == 2

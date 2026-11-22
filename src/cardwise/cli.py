@@ -1153,9 +1153,8 @@ def _bridge(p: argparse.ArgumentParser) -> Handler:
         b = pnl_bridge(before, after)
         lines = [f"Pre-tax profit before   {money(b.before):>10}", ""]
         for name, impact in sorted(b.drivers.items(), key=lambda kv: kv[1]):
-            lines.append(
-                f"  {name.replace('_', ' '):<20} {'+' if impact >= 0 else ''}{money(impact):>9}"
-            )
+            signed = ("+" if impact >= 0 else "") + money(impact)
+            lines.append(f"  {name.replace('_', ' '):<20} {signed:>10}")
         lines += ["", f"Pre-tax profit after    {money(b.after):>10}  ({money(b.change)})"]
         return Output("\n".join(lines), b.to_dict())
 
