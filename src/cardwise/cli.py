@@ -8,6 +8,7 @@ arguments to a sub-parser and returns the handler. Handlers return an
 from __future__ import annotations
 
 import argparse
+import csv
 import dataclasses
 import io
 import json
@@ -27,6 +28,7 @@ from cardwise.benchmark.ranges import PORTFOLIO_TYPES
 from cardwise.core.errors import CardwiseError, ValidationError
 from cardwise.issuing.pnl import CardEconomics, card_pnl
 from cardwise.issuing.rewards import rewards_programme
+from cardwise.risk.fraud import Scored, best_threshold, rule_economics
 
 
 @dataclass(frozen=True)
@@ -318,6 +320,81 @@ def _chargebacks(p: argparse.ArgumentParser) -> Handler:
             f"Recommendation      {verdict}",
         ]
         return Output("\n".join(lines), c.to_dict())
+
+    return handle
+
+
+@command("fraud", "fraud rule economics from a confusion matrix")
+def _fraud(p: argparse.ArgumentParser) -> Handler:
+    p.add_argument("--tp", type=float, required=True, help="fraud declined")
+    p.add_argument("--fp", type=float, required=True, help="good transactions declined")
+    p.add_argument("--fn", type=float, required=True, help="fraud approved")
+    p.add_argument("--tn", type=float, required=True, help="good transactions approved")
+    p.add_argument("--fraud-value", type=float, required=True, help="average fraud amount")
+    p.add_argument("--good-value", type=float, required=True, help="average good amount")
+    p.add_argument("--margin", type=float, required=True, help="margin on a good sale")
+    p.add_argument("--churn-cost", type=float, default=0.0, help="per good customer declined")
+
+    def handle(args: argparse.Namespace) -> Output:
+        r = rule_economics(
+            args.tp,
+            args.fp,
+            args.fn,
+            args.tn,
+            args.fraud_value,
+            args.good_value,
+            args.margin,
+            args.churn_cost,
+        )
+        fpr = "n/a" if r.false_positive_ratio is None else f"{r.false_positive_ratio:.1f} : 1"
+        lines = [
+            f"Precision          {pct(r.precision)}",
+            f"Recall             {pct(r.recall)}",
+            f"Decline rate       {pct(r.decline_rate, 2)}",
+            f"Good : fraud declined  {fpr}",
+            f"Fraud prevented    {money(r.fraud_prevented)}",
+            f"Fraud missed       {money(r.fraud_missed)}",
+            f"Insult cost        {money(r.insult_cost)}",
+            f"Total cost         {money(r.total_cost)}",
+        ]
+        return Output("\n".join(lines), r.to_dict())
+
+    return handle
+
+
+@command("threshold", "cost-optimal fraud score cut-off from scored transactions (CSV)")
+def _threshold(p: argparse.ArgumentParser) -> Handler:
+    p.add_argument("file", help="CSV with columns score,is_fraud,value")
+    p.add_argument("--margin", type=float, required=True, help="margin on a good sale")
+    p.add_argument("--churn-cost", type=float, default=0.0)
+
+    def handle(args: argparse.Namespace) -> Output:
+        rows = []
+        reader = csv.DictReader(io.StringIO(read_text(args.file)))
+        for i, row in enumerate(reader, start=2):
+            try:
+                rows.append(
+                    Scored(
+                        float(row["score"]),
+                        row["is_fraud"].strip() in ("1", "true"),
+                        float(row["value"]),
+                    )
+                )
+            except (KeyError, ValueError, AttributeError):
+                raise ValidationError(f"{args.file} line {i}: need score,is_fraud,value") from None
+        c = best_threshold(rows, args.margin, args.churn_cost)
+        lines = [
+            f"Best threshold   decline when score >= {c.threshold:g}",
+            f"Total cost       {money(c.total_cost)}",
+            f"Fraud missed     {money(c.fraud_missed)}",
+            f"Insult cost      {money(c.insult_cost)}",
+            f"Decline rate     {pct(c.decline_rate, 2)}",
+            f"Fraud caught     {pct(c.recall)} of cases",
+        ]
+        data = c.to_dict()
+        data["threshold"] = None if c.threshold == float("inf") else c.threshold
+        data["curve"] = [(None if t == float("inf") else t, v) for t, v in c.curve]
+        return Output("\n".join(lines), data)
 
     return handle
 

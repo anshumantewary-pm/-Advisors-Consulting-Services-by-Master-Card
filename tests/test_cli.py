@@ -236,3 +236,39 @@ def test_merchant_and_chargebacks(capsys: pytest.CaptureFixture[str]) -> None:
     assert "Recommendation      contest" in out
     out = run(capsys, "chargebacks", "--count", "10", "--value", "10", "--fee", "15")
     assert "accept" in out
+
+
+def test_fraud_commands(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
+    out = run(
+        capsys,
+        "fraud",
+        "--tp",
+        "80",
+        "--fp",
+        "400",
+        "--fn",
+        "20",
+        "--tn",
+        "99500",
+        "--fraud-value",
+        "300",
+        "--good-value",
+        "60",
+        "--margin",
+        "0.03",
+    )
+    assert "Good : fraud declined  5.0 : 1" in out
+    out = run(capsys, "threshold", str(EXAMPLES / "scored-transactions.csv"), "--margin", "0.05")
+    assert "Best threshold" in out
+    data = run_json(
+        capsys, "threshold", str(EXAMPLES / "scored-transactions.csv"), "--margin", "0.05"
+    )
+    assert isinstance(data, dict)
+    assert data["recall"] > 0.5
+    bad = tmp_path / "bad.csv"
+    bad.write_text("score,is_fraud\n0.1,1\n", encoding="utf-8")
+    assert main(["threshold", str(bad), "--margin", "0.1"]) == 2
+    assert "line 2" in capsys.readouterr().err
+    none = tmp_path / "none.csv"
+    none.write_text("score,is_fraud,value\n0.5,0,10\n", encoding="utf-8")
+    assert run_json(capsys, "threshold", str(none), "--margin", "0.1")["threshold"] is None  # type: ignore[index]
