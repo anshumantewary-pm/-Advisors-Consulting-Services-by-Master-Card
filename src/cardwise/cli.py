@@ -29,6 +29,8 @@ from cardwise.core.errors import CardwiseError, ValidationError
 from cardwise.issuing.pnl import CardEconomics, card_pnl
 from cardwise.issuing.rewards import rewards_programme
 from cardwise.risk.fraud import Scored, best_threshold, rule_economics
+from cardwise.risk.rollrate import BUCKETS, analyse
+from cardwise.risk.vintage import Vintage, vintage_curves
 
 
 @dataclass(frozen=True)
@@ -395,6 +397,62 @@ def _threshold(p: argparse.ArgumentParser) -> Handler:
         data["threshold"] = None if c.threshold == float("inf") else c.threshold
         data["curve"] = [(None if t == float("inf") else t, v) for t, v in c.curve]
         return Output("\n".join(lines), data)
+
+    return handle
+
+
+@command("rollrate", "delinquency roll rates, flow-through and projected charge-offs (JSON)")
+def _rollrate(p: argparse.ArgumentParser) -> Handler:
+    p.add_argument("file", help="JSON with moves, balances and months (examples/roll-rates.json)")
+
+    def handle(args: argparse.Namespace) -> Output:
+        body = read_json(args.file)
+        if not isinstance(body, dict) or "moves" not in body or "balances" not in body:
+            raise ValidationError(f"{args.file} needs 'moves' and 'balances'")
+        months = body.get("months", 12)
+        if isinstance(months, bool) or not isinstance(months, int):
+            raise ValidationError("months must be a whole number")
+        a = analyse(body["moves"], body["balances"], months)
+        lines = ["Forward roll rates"]
+        lines += [f"  {b:<8} -> next  {pct(r)}" for b, r in a.roll_rates.items()]
+        lines += [
+            "",
+            f"Flow-through to charge-off   {pct(a.flow_through, 3)}",
+            f"Charge-offs over {months} months  {money(a.projected_charge_offs)}",
+            f"Loss rate on balances        {pct(a.loss_rate, 2)}",
+            "",
+            "Balances at month " + str(months),
+        ]
+        lines += [f"  {b:<10} {money(a.projection[-1][b]):>10}" for b in BUCKETS]
+        return Output("\n".join(lines), a.to_dict())
+
+    return handle
+
+
+@command("vintage", "loss vintage curves: compare cohorts at the same months on book (JSON)")
+def _vintage(p: argparse.ArgumentParser) -> Handler:
+    p.add_argument("file", help="JSON with a list of vintages (examples/vintages.json)")
+    p.add_argument("--at-month", type=int, help="months on book to compare (default: shortest)")
+
+    def handle(args: argparse.Namespace) -> Output:
+        body = read_json(args.file)
+        raw = body.get("vintages") if isinstance(body, dict) else None
+        if not isinstance(raw, list):
+            raise ValidationError(f"{args.file} needs a 'vintages' list")
+        try:
+            vintages = [
+                Vintage(
+                    v["name"], float(v["originated"]), tuple(float(x) for x in v["monthly_losses"])
+                )
+                for v in raw
+            ]
+        except (KeyError, TypeError, ValueError):
+            raise ValidationError("each vintage needs name, originated, monthly_losses") from None
+        vc = vintage_curves(vintages, args.at_month)
+        lines = [f"Cumulative loss rate at month {vc.at_month}"]
+        lines += [f"  {k:<10} {pct(v, 2)}" for k, v in vc.loss_at_month.items()]
+        lines += ["", f"Best {vc.best} · worst {vc.worst}"]
+        return Output("\n".join(lines), vc.to_dict())
 
     return handle
 

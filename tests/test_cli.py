@@ -272,3 +272,25 @@ def test_fraud_commands(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> N
     none = tmp_path / "none.csv"
     none.write_text("score,is_fraud,value\n0.5,0,10\n", encoding="utf-8")
     assert run_json(capsys, "threshold", str(none), "--margin", "0.1")["threshold"] is None  # type: ignore[index]
+
+
+def test_risk_portfolio_commands(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
+    out = run(capsys, "rollrate", str(EXAMPLES / "roll-rates.json"))
+    assert "Flow-through to charge-off" in out
+    assert "charge_off" in out
+    out = run(capsys, "vintage", str(EXAMPLES / "vintages.json"))
+    assert "worst 2024-H1" in out
+    assert "month 3" in run(capsys, "vintage", str(EXAMPLES / "vintages.json"), "--at-month", "3")
+    bad = tmp_path / "b.json"
+    for body, message in [
+        ("[]", "needs 'moves'"),
+        ('{"moves": {}, "balances": {}, "months": 1.5}', "whole number"),
+    ]:
+        bad.write_text(body, encoding="utf-8")
+        assert main(["rollrate", str(bad)]) == 2
+        assert message in capsys.readouterr().err
+    bad_vintages = [("{}", "'vintages' list"), ('{"vintages": [{"name": "x"}]}', "each vintage")]
+    for body, message in bad_vintages:
+        bad.write_text(body, encoding="utf-8")
+        assert main(["vintage", str(bad)]) == 2
+        assert message in capsys.readouterr().err
