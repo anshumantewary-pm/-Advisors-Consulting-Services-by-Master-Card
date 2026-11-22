@@ -48,7 +48,7 @@ from cardwise.customer.retention import RetentionSegment, retention_plan
 from cardwise.customer.rfm import Customer, rfm
 from cardwise.issuing.activation import activation_campaign
 from cardwise.issuing.line_increase import line_increase
-from cardwise.issuing.pnl import CardEconomics, card_pnl
+from cardwise.issuing.pnl import CardEconomics, card_pnl, pnl_bridge
 from cardwise.issuing.rewards import rewards_programme
 from cardwise.market.sizing import card_market, share_of_wallet
 from cardwise.risk.collections import collections_strategy
@@ -1131,6 +1131,28 @@ def _collections(p: argparse.ArgumentParser) -> Handler:
             f"Break-even uplift   {pct(c.break_even_cure_uplift, 2)} of cure rate",
         ]
         return Output("\n".join(lines), c.to_dict())
+
+    return handle
+
+
+@command("bridge", "walk card profit from one period to the next, line by line (JSON)")
+def _bridge(p: argparse.ArgumentParser) -> Handler:
+    p.add_argument("file", help="JSON with before and after economics (see examples/)")
+
+    def handle(args: argparse.Namespace) -> Output:
+        body = read_json(args.file)
+        if not isinstance(body, dict) or not {"before", "after"} <= set(body):
+            raise ValidationError(f"{args.file} needs 'before' and 'after'")
+        before = from_dict(CardEconomics, body["before"], "before")
+        after = from_dict(CardEconomics, body["after"], "after")
+        b = pnl_bridge(before, after)
+        lines = [f"Pre-tax profit before   {money(b.before):>10}", ""]
+        for name, impact in sorted(b.drivers.items(), key=lambda kv: kv[1]):
+            lines.append(
+                f"  {name.replace('_', ' '):<20} {'+' if impact >= 0 else ''}{money(impact):>9}"
+            )
+        lines += ["", f"Pre-tax profit after    {money(b.after):>10}  ({money(b.change)})"]
+        return Output("\n".join(lines), b.to_dict())
 
     return handle
 
