@@ -32,6 +32,7 @@ from cardwise.customer.experiment import sample_size, two_proportion_test
 from cardwise.customer.rfm import Customer, rfm
 from cardwise.issuing.pnl import CardEconomics, card_pnl
 from cardwise.issuing.rewards import rewards_programme
+from cardwise.market.sizing import card_market, share_of_wallet
 from cardwise.risk.fraud import Scored, best_threshold, rule_economics
 from cardwise.risk.rollrate import BUCKETS, analyse
 from cardwise.risk.vintage import Vintage, vintage_curves
@@ -584,6 +585,57 @@ def _sample_size(p: argparse.ArgumentParser) -> Handler:
         n = sample_size(args.baseline, args.lift, args.confidence, args.power)
         text = f"{n:,} customers per group ({2 * n:,} in total)"
         return Output(text, {"per_group": n, "total": 2 * n})
+
+    return handle
+
+
+@command("market", "card market size, cash displacement and revenue pool")
+def _market(p: argparse.ArgumentParser) -> Handler:
+    p.add_argument("--population", type=float, required=True)
+    p.add_argument("--spend-per-capita", type=float, required=True)
+    p.add_argument("--card-share", type=float, required=True, help="card share of spend today")
+    p.add_argument("--growth", type=float, required=True, help="annual consumer spend growth")
+    p.add_argument("--target-share", type=float, required=True, help="card share after --years")
+    p.add_argument("--years", type=int, default=5)
+    p.add_argument("--revenue-yield", type=float, required=True, help="revenue per unit of spend")
+
+    def handle(args: argparse.Namespace) -> Output:
+        m = card_market(
+            args.population,
+            args.spend_per_capita,
+            args.card_share,
+            args.growth,
+            args.target_share,
+            args.years,
+            args.revenue_yield,
+        )
+        lines = [
+            f"{s.label:<40} {pct(s.value) if s.unit == '%' else money(s.value):>10}"
+            for s in m.steps
+        ]
+        return Output("\n".join(lines), m.to_dict())
+
+    return handle
+
+
+@command("wallet", "share of wallet and the spend opportunity at a target share")
+def _wallet(p: argparse.ArgumentParser) -> Handler:
+    p.add_argument("--our-spend", type=float, required=True)
+    p.add_argument("--total-spend", type=float, required=True, help="all card spend of customers")
+    p.add_argument("--target", type=float, required=True, help="target share of wallet")
+    p.add_argument("--main-card-customers", type=float)
+    p.add_argument("--customers", type=float)
+
+    def handle(args: argparse.Namespace) -> Output:
+        w = share_of_wallet(
+            args.our_spend, args.total_spend, args.target, args.main_card_customers, args.customers
+        )
+        lines = [
+            f"Share of wallet    {pct(w.share_of_wallet)}",
+            f"Top of wallet      {pct(w.top_of_wallet_rate)}",
+            f"Opportunity        {money(w.opportunity_at_target)} at {pct(args.target)}",
+        ]
+        return Output("\n".join(lines), w.to_dict())
 
     return handle
 

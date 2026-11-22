@@ -322,3 +322,39 @@ def test_customer_value_commands(capsys: pytest.CaptureFixture[str]) -> None:
     assert main(["experiment", "--test", "x", "--control", "1,1"]) == 2
     assert "SIZE,CONVERSIONS" in capsys.readouterr().err
     assert "per group" in run(capsys, "sample-size", "--baseline", "0.1", "--lift", "0.02")
+
+
+def test_market_commands(capsys: pytest.CaptureFixture[str]) -> None:
+    out = run(
+        capsys,
+        "market",
+        "--population",
+        "1e7",
+        "--spend-per-capita",
+        "8000",
+        "--card-share",
+        "0.45",
+        "--growth",
+        "0.05",
+        "--target-share",
+        "0.6",
+        "--revenue-yield",
+        "0.02",
+    )
+    assert "Revenue pool" in out
+    assert "45.0%" in out
+    out = run(
+        capsys,
+        "wallet",
+        "--our-spend",
+        "3e7",
+        "--total-spend",
+        "1e8",
+        "--target",
+        "0.45",
+        "--main-card-customers",
+        "4000",
+        "--customers",
+        "10000",
+    )
+    assert "Share of wallet    30.0%" in out
