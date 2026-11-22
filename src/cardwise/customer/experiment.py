@@ -88,5 +88,7 @@ def sample_size(
     za = _N.inv_cdf(0.5 + confidence / 2)
     zb = _N.inv_cdf(power)
     p_bar = (p1 + p2) / 2
-    n = (za * math.sqrt(2 * p_bar * (1 - p_bar)) + zb * math.sqrt(p1 * (1 - p1) + p2 * (1 - p2))) ** 2
+    n = (
+        za * math.sqrt(2 * p_bar * (1 - p_bar)) + zb * math.sqrt(p1 * (1 - p1) + p2 * (1 - p2))
+    ) ** 2
     return math.ceil(n / delta**2)

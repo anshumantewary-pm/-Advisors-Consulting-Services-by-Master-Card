@@ -10,8 +10,14 @@ from cardwise.core.errors import ValidationError
 
 
 def test_kpis() -> None:
-    k = merchant_kpis(100_000, 92_000, 4.6e6, 700, chargeback_value=40_000,
-                      declines_by_reason={"insufficient funds": 4000, "suspected fraud": 2000})
+    k = merchant_kpis(
+        100_000,
+        92_000,
+        4.6e6,
+        700,
+        chargeback_value=40_000,
+        declines_by_reason={"insufficient funds": 4000, "suspected fraud": 2000},
+    )
     assert k.approval_rate == pytest.approx(0.92)
     assert k.average_ticket == pytest.approx(50)
     assert k.chargeback_ratio == pytest.approx(700 / 92_000)

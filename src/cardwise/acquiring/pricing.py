@@ -48,11 +48,16 @@ class MDRSplit(Result):
     acquirer_margin_rate: float
 
 
-def mdr_split(volume: float, mdr: float, interchange_rate: float, scheme_fee_rate: float) -> MDRSplit:
+def mdr_split(
+    volume: float, mdr: float, interchange_rate: float, scheme_fee_rate: float
+) -> MDRSplit:
     """Who gets what from one merchant's fees. The parts add up to the merchant's cost."""
     volume = require_non_negative("volume", volume)
-    for name, value in (("mdr", mdr), ("interchange_rate", interchange_rate),
-                        ("scheme_fee_rate", scheme_fee_rate)):  # fmt: skip
+    for name, value in (
+        ("mdr", mdr),
+        ("interchange_rate", interchange_rate),
+        ("scheme_fee_rate", scheme_fee_rate),
+    ):
         require_fraction(name, value)
     margin_rate = mdr - interchange_rate - scheme_fee_rate
     return MDRSplit(

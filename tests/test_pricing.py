@@ -29,7 +29,11 @@ def test_compare_pricing() -> None:
 
 @pytest.mark.parametrize(
     ("mix", "message"),
-    [([], "mix"), ([CardMix("a", 0.5, 0.01)], "add up to 1"), ([CardMix("a", 1.0, 2.0)], "a.interchange_rate")],
+    [
+        ([], "mix"),
+        ([CardMix("a", 0.5, 0.01)], "add up to 1"),
+        ([CardMix("a", 1.0, 2.0)], "a.interchange_rate"),
+    ],
 )
 def test_bad_mix(mix: list[CardMix], message: str) -> None:
     with pytest.raises(ValidationError, match=message):

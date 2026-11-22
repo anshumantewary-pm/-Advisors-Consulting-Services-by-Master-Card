@@ -13,8 +13,15 @@ def test_quintiles() -> None:
 
 @pytest.mark.parametrize(
     ("r", "f", "name"),
-    [(5, 5, "Champions"), (3, 3, "Loyal"), (5, 1, "New / promising"), (1, 5, "Can't lose them"),
-     (2, 2, "At risk"), (3, 1, "Needs attention"), (1, 1, "Hibernating")],
+    [
+        (5, 5, "Champions"),
+        (3, 3, "Loyal"),
+        (5, 1, "New / promising"),
+        (1, 5, "Can't lose them"),
+        (2, 2, "At risk"),
+        (3, 1, "Needs attention"),
+        (1, 1, "Hibernating"),
+    ],
 )
 def test_segments(r: int, f: int, name: str) -> None:
     assert segment(r, f) == name
@@ -30,5 +37,5 @@ def test_rfm() -> None:
     assert sum(res.segment_spend.values()) == pytest.approx(4500)
     with pytest.raises(ValidationError):
         rfm([])
-    with pytest.raises(ValidationError, match="x.spend"):
+    with pytest.raises(ValidationError, match=r"x\.spend"):
         rfm([Customer("x", 1, 1, -1)])

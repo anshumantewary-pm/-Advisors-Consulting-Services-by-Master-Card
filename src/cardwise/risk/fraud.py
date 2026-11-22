@@ -109,7 +109,7 @@ def best_threshold(
         require_non_negative(f"transactions[{i}].value", t.value)
     total_fraud = sum(t.value for t in transactions if t.is_fraud)
     n_fraud = sum(1 for t in transactions if t.is_fraud)
-    candidates = sorted({t.score for t in transactions}) + [float("inf")]
+    candidates = [*sorted({t.score for t in transactions}), float("inf")]
     curve = []
     best: tuple[float, float, float, float, float, float] | None = None
     for th in candidates:

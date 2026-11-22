@@ -27,8 +27,14 @@ def test_rule_economics_empty() -> None:
 
 
 def test_best_threshold() -> None:
-    txns = [Scored(0.9, True, 500), Scored(0.8, True, 300), Scored(0.7, False, 100),
-            Scored(0.4, False, 100), Scored(0.3, True, 20), Scored(0.1, False, 50)]
+    txns = [
+        Scored(0.9, True, 500),
+        Scored(0.8, True, 300),
+        Scored(0.7, False, 100),
+        Scored(0.4, False, 100),
+        Scored(0.3, True, 20),
+        Scored(0.1, False, 50),
+    ]
     choice = best_threshold(txns, margin=0.1, churn_cost_per_false_decline=10)
     assert choice.threshold == 0.8
     assert choice.fraud_missed == pytest.approx(20)

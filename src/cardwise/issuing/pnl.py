@@ -55,8 +55,14 @@ def card_pnl(e: CardEconomics) -> CardPnL:
     volume = require_non_negative("purchase_volume", e.purchase_volume)
     receivables = require_positive("receivables", e.receivables)
     revolving = require_non_negative("revolving_balances", e.revolving_balances)
-    for name in ("interchange_rate", "apr", "cost_of_funds", "rewards_rate",
-                 "net_credit_loss_rate", "network_fee_rate"):  # fmt: skip
+    for name in (
+        "interchange_rate",
+        "apr",
+        "cost_of_funds",
+        "rewards_rate",
+        "net_credit_loss_rate",
+        "network_fee_rate",
+    ):
         require_fraction(name, getattr(e, name))
     require_non_negative("fee_income", e.fee_income)
     require_non_negative("cost_per_account", e.cost_per_account)
@@ -129,5 +135,6 @@ def pnl_bridge(before: CardEconomics, after: CardEconomics) -> PnLBridge:
     """Walk pre-tax profit from one period to the next, line by line (adds up exactly)."""
     a, b = card_pnl(before), card_pnl(after)
     drivers = {name: sign * (getattr(b, name) - getattr(a, name)) for name, sign in _LINES}
-    return PnLBridge(a.pre_tax_profit, b.pre_tax_profit, b.pre_tax_profit - a.pre_tax_profit,
-                     drivers)  # fmt: skip
+    return PnLBridge(
+        a.pre_tax_profit, b.pre_tax_profit, b.pre_tax_profit - a.pre_tax_profit, drivers
+    )

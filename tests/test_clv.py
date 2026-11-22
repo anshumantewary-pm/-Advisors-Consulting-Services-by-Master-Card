@@ -22,8 +22,10 @@ def test_segments() -> None:
     segs = {"premium": (1000, 400, 0.9), "mass": (10_000, 60, 0.75)}
     vals = segment_values(segs, 0.1)
     assert vals["premium"].clv > vals["mass"].clv
-    assert portfolio_value(segs, 0.1) == pytest.approx(1000 * vals["premium"].clv + 10_000 * vals["mass"].clv)
+    assert portfolio_value(segs, 0.1) == pytest.approx(
+        1000 * vals["premium"].clv + 10_000 * vals["mass"].clv
+    )
     with pytest.raises(ValidationError, match="retention"):
         lifetime_value(1, 1.5, 0.1)
-    with pytest.raises(ValidationError, match="x.customers"):
+    with pytest.raises(ValidationError, match=r"x\.customers"):
         segment_values({"x": (-1, 1, 0.5)}, 0.1)

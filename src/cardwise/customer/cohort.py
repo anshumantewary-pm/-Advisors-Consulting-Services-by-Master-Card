@@ -28,7 +28,9 @@ def cohort_retention(activity: Iterable[tuple[str, int, int]]) -> CohortTable:
     last_period = None
     for cid, cohort, period in activity:
         if period < cohort:
-            raise ValidationError(f"customer {cid} is active in {period} before joining in {cohort}")
+            raise ValidationError(
+                f"customer {cid} is active in {period} before joining in {cohort}"
+            )
         if joined.setdefault(cid, cohort) != cohort:
             raise ValidationError(f"customer {cid} has two cohorts")
         active.setdefault(cid, set()).add(period)
@@ -43,7 +45,9 @@ def cohort_retention(activity: Iterable[tuple[str, int, int]]) -> CohortTable:
     for c in sorted(by_cohort):
         members = by_cohort[c]
         span = last_period - c + 1
-        row = tuple(sum(1 for m in members if c + k in active[m]) / len(members) for k in range(span))
+        row = tuple(
+            sum(1 for m in members if c + k in active[m]) / len(members) for k in range(span)
+        )
         retention[str(c)] = (1.0, *row[1:])
         sizes[str(c)] = len(members)
     longest = max(len(r) for r in retention.values())

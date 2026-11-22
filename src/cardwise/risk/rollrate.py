@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from itertools import pairwise
 
 from cardwise.core.errors import ValidationError
 from cardwise.core.result import Result
@@ -45,10 +46,12 @@ def transition_matrix(moves: Mapping[str, Mapping[str, float]]) -> Matrix:
 
 def roll_rates(matrix: Matrix) -> dict[str, float]:
     """Forward roll rate of each delinquent stage: share moving one bucket worse."""
-    return {src: matrix[src][dst] for src, dst in zip(BUCKETS[:-1], BUCKETS[1:], strict=True)}
+    return {src: matrix[src][dst] for src, dst in pairwise(BUCKETS)}
 
 
-def project(balances: Mapping[str, float], matrix: Matrix, months: int) -> tuple[dict[str, float], ...]:
+def project(
+    balances: Mapping[str, float], matrix: Matrix, months: int
+) -> tuple[dict[str, float], ...]:
     """Balances by bucket for each of the next ``months`` (no new lending, no paydown)."""
     require_count("months", months)
     state = {b: require_non_negative(f"balances.{b}", balances.get(b, 0.0)) for b in BUCKETS}

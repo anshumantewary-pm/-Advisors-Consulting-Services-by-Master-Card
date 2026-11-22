@@ -51,7 +51,9 @@ def segment_values(
     return out
 
 
-def portfolio_value(segments: Mapping[str, tuple[float, float, float]], discount_rate: float) -> float:
+def portfolio_value(
+    segments: Mapping[str, tuple[float, float, float]], discount_rate: float
+) -> float:
     """Total customer equity: sum of customers x CLV over segments."""
     values = segment_values(segments, discount_rate)
     return sum(segments[n][0] * v.clv for n, v in values.items())

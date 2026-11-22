@@ -35,8 +35,14 @@ def test_zero_revenue_mix() -> None:
 
 @pytest.mark.parametrize(
     ("field", "value"),
-    [("active_accounts", 0), ("receivables", 0), ("apr", 1.5), ("fee_income", -1),
-     ("cost_per_account", -1), ("purchase_volume", -1)],
+    [
+        ("active_accounts", 0),
+        ("receivables", 0),
+        ("apr", 1.5),
+        ("fee_income", -1),
+        ("cost_per_account", -1),
+        ("purchase_volume", -1),
+    ],
 )
 def test_validation(field: str, value: float) -> None:
     with pytest.raises(ValidationError, match=field):
