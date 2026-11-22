@@ -1,7 +1,7 @@
 """Goal seek: what value of one input makes the model hit a target?
 
-"What price do we need for a 20% margin?" "How many sessions until NPV is
-zero?" Bisection on a bracket, so it works for any continuous model whose
+"What loss rate wipes out card profit?" "What rewards rate keeps the
+programme at break-even?" Bisection on a bracket, so it works for any continuous model whose
 output crosses the target inside the bracket.
 """
 
