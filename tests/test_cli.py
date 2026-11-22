@@ -475,3 +475,12 @@ def test_activation(capsys: pytest.CaptureFixture[str]) -> None:
         "10",
     )
     assert "not within horizon" in out
+
+
+def test_retention(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
+    out = run(capsys, "retention", str(EXAMPLES / "retention-segments.json"))
+    assert "Premium, high churn risk" in out
+    assert "budget" in out
+    bad = tmp_path / "b.json"
+    bad.write_text("{}", encoding="utf-8")
+    assert main(["retention", str(bad)]) == 2

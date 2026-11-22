@@ -28,6 +28,7 @@ from cardwise.advisory.target import target_state
 from cardwise.benchmark.peers import scorecard
 from cardwise.benchmark.ranges import PORTFOLIO_TYPES
 from cardwise.core.errors import CardwiseError, ValidationError
+from cardwise.core.parse import from_dict
 from cardwise.credit import (
     INDUSTRIES,
     borrower_from_dict,
@@ -41,6 +42,7 @@ from cardwise.credit import render_summary as credit_summary
 from cardwise.customer.clv import lifetime_value
 from cardwise.customer.cohort import cohort_retention
 from cardwise.customer.experiment import sample_size, two_proportion_test
+from cardwise.customer.retention import RetentionSegment, retention_plan
 from cardwise.customer.rfm import Customer, rfm
 from cardwise.issuing.activation import activation_campaign
 from cardwise.issuing.pnl import CardEconomics, card_pnl
@@ -890,6 +892,34 @@ def _activation(p: argparse.ArgumentParser) -> Handler:
             f"Payback                  {payback}",
         ]
         return Output("\n".join(lines), c.to_dict())
+
+    return handle
+
+
+@command("retention", "which at-risk segments are worth a retention offer? (JSON)")
+def _retention(p: argparse.ArgumentParser) -> Handler:
+    p.add_argument("file", help="JSON with a 'segments' list (examples/retention-segments.json)")
+
+    def handle(args: argparse.Namespace) -> Output:
+        body = read_json(args.file)
+        raw = body.get("segments") if isinstance(body, dict) else None
+        if not isinstance(raw, list):
+            raise ValidationError(f"{args.file} needs a 'segments' list")
+        segments = [from_dict(RetentionSegment, s, f"segments[{i}]") for i, s in enumerate(raw)]
+        plan = retention_plan(segments)
+        lines = [f"{'Segment':<28} {'Value/customer':>14} {'Total':>10}  Offer?"]
+        for d in plan.decisions:
+            lines.append(
+                f"{d.name:<28} {money(d.value_per_customer):>14} "
+                f"{money(d.total_value):>10}  {'yes' if d.target else 'no'}"
+            )
+        lines += [
+            "",
+            f"Target {plan.customers_targeted:,.0f} customers, budget {money(plan.budget)}, "
+            f"expected value {money(plan.expected_value)}, about "
+            f"{plan.customers_saved:,.0f} customers kept",
+        ]
+        return Output("\n".join(lines), plan.to_dict())
 
     return handle
 
