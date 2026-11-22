@@ -506,3 +506,18 @@ def test_provision(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
         '{"balances": {"current": 0}, "pd_12m": {"current": 0.1}, "lgd": 0.5}', encoding="utf-8"
     )
     assert "n/a" in run(capsys, "provision", str(bad))
+
+
+def test_examples_command_lists_runnable_commands(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from cardwise.cli import EXAMPLES as LISTED
+
+    assert "cardwise review" in run(capsys, "examples")
+    monkeypatch.chdir(ROOT)
+    for path, cmd in LISTED:
+        assert (ROOT / path).exists(), path
+        argv = cmd.split()[1:]
+        argv = [str(tmp_path / a) if a.endswith(".md") else a for a in argv]
+        assert main(argv) == 0, cmd
+    capsys.readouterr()

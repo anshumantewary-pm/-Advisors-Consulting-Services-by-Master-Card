@@ -985,6 +985,44 @@ def _provision(p: argparse.ArgumentParser) -> Handler:
     return handle
 
 
+EXAMPLES: tuple[tuple[str, str], ...] = (
+    (
+        "examples/portfolio-review.json",
+        "cardwise review examples/portfolio-review.json --report report.md",
+    ),
+    ("examples/peer-benchmark.json", "cardwise benchmark examples/peer-benchmark.json"),
+    ("examples/merchant-portfolio.json", "cardwise merchants examples/merchant-portfolio.json"),
+    (
+        "examples/scored-transactions.csv",
+        "cardwise threshold examples/scored-transactions.csv --margin 0.05",
+    ),
+    ("examples/roll-rates.json", "cardwise rollrate examples/roll-rates.json"),
+    ("examples/vintages.json", "cardwise vintage examples/vintages.json"),
+    ("examples/provision.json", "cardwise provision examples/provision.json"),
+    ("examples/customers.csv", "cardwise rfm examples/customers.csv"),
+    ("examples/activity.csv", "cardwise cohort examples/activity.csv"),
+    ("examples/retention-segments.json", "cardwise retention examples/retention-segments.json"),
+    (
+        "examples/credit/northwind-industrial.json",
+        "cardwise credit examples/credit/northwind-industrial.json --memo memo.md",
+    ),
+    (
+        "examples/credit/coastal-retail-q3-review.json",
+        "cardwise collect examples/credit/coastal-retail-q3-review.json",
+    ),
+)
+
+
+@command("examples", "list the example files and the command that runs each one")
+def _examples(p: argparse.ArgumentParser) -> Handler:
+    def handle(args: argparse.Namespace) -> Output:
+        lines = ["Run these from the repository root:", ""]
+        lines += [f"  {cmd}" for _, cmd in EXAMPLES]
+        return Output("\n".join(lines), [{"file": f, "command": c} for f, c in EXAMPLES])
+
+    return handle
+
+
 # ---------------------------------------------------------------- end of commands
 
 
