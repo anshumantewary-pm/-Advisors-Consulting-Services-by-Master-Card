@@ -1,0 +1,23 @@
+{
+  "name": "Harbour Bank Cards",
+  "portfolio_type": "mass_credit",
+  "accounts": 1000000,
+  "transactions": 100000000,
+  "approval_rate": 0.83,
+  "fraud_losses": 3500000,
+  "currency": "$",
+  "economics": {
+    "active_accounts": 520000,
+    "purchase_volume": 5200000000,
+    "receivables": 2500000000,
+    "revolving_balances": 1050000000,
+    "interchange_rate": 0.017,
+    "apr": 0.21,
+    "fee_income": 45000000,
+    "cost_of_funds": 0.045,
+    "rewards_rate": 0.0095,
+    "net_credit_loss_rate": 0.058,
+    "network_fee_rate": 0.0012,
+    "cost_per_account": 55
+  }
+}

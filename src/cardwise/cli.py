@@ -16,6 +16,10 @@ from dataclasses import dataclass
 from typing import Any
 
 from cardwise import __version__
+from cardwise.advisory.diagnose import diagnose
+from cardwise.advisory.io import review_from_dict
+from cardwise.advisory.report import render_report, render_summary
+from cardwise.benchmark.ranges import PORTFOLIO_TYPES
 from cardwise.core.errors import CardwiseError, ValidationError
 
 
@@ -79,6 +83,42 @@ def pct(value: float | None, digits: int = 1) -> str:
 
 # ---------------------------------------------------------------- commands
 # (each command module section below registers itself)
+
+
+@command("review", "diagnose a card portfolio against typical ranges and size the opportunities")
+def _review(p: argparse.ArgumentParser) -> Handler:
+    p.add_argument("file", help="portfolio review JSON (see examples/portfolio-review.json)")
+    p.add_argument("--report", metavar="PATH", help="write the Markdown report; '-' prints it")
+
+    def handle(args: argparse.Namespace) -> Output:
+        d = diagnose(review_from_dict(read_json(args.file)))
+        md = render_report(d)
+        text = md if args.report == "-" else render_summary(d)
+        if args.report and args.report != "-":
+            write_text(args.report, md)
+            text += f"\n\nReport written to {args.report}"
+        data = d.to_dict()
+        data["report_markdown"] = md
+        return Output(text, data)
+
+    return handle
+
+
+@command("types", "list portfolio types and the KPI ranges 'review' checks against")
+def _types(p: argparse.ArgumentParser) -> Handler:
+    def handle(args: argparse.Namespace) -> Output:
+        lines = []
+        for t in PORTFOLIO_TYPES.values():
+            lines.append(f"{t.key:<16} {t.name}")
+            for r in t.ranges:
+                if r.unit == "bp":
+                    band = f"{r.low:g} - {r.high:g} bp"
+                else:
+                    band = f"{pct(r.low)} - {pct(r.high)}"
+                lines.append(f"    {r.label:<32} {band}")
+        return Output("\n".join(lines), {k: t.to_dict() for k, t in PORTFOLIO_TYPES.items()})
+
+    return handle
 
 
 # ---------------------------------------------------------------- end of commands

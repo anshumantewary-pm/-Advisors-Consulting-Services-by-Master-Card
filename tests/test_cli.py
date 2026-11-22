@@ -51,3 +51,31 @@ def test_helpers(tmp_path: Path) -> None:
         read_text(str(tmp_path / "missing.txt"))
     with pytest.raises(ValidationError, match="cannot write"):
         write_text(str(tmp_path / "no" / "x.txt"), "x")
+
+
+def test_review(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
+    out = run(capsys, "review", str(EXAMPLES / "portfolio-review.json"))
+    assert "Harbour Bank Cards" in out
+    assert "Top opportunities" in out
+    report = tmp_path / "r.md"
+    out = run(capsys, "review", str(EXAMPLES / "portfolio-review.json"), "--report", str(report))
+    assert report.read_text(encoding="utf-8").startswith("# Portfolio review")
+    assert "## 1. Executive summary" in run(
+        capsys, "review", str(EXAMPLES / "portfolio-review.json"), "--report", "-"
+    )
+    data = run_json(capsys, "review", str(EXAMPLES / "portfolio-review.json"))
+    assert isinstance(data, dict)
+    assert data["opportunities"]
+    assert data["report_markdown"].startswith("# Portfolio review")
+
+
+def test_types(capsys: pytest.CaptureFixture[str]) -> None:
+    out = run(capsys, "types")
+    assert "mass_credit" in out
+    assert "3 - 8 bp" in out
+    assert "premium_credit" in run_json(capsys, "types")  # type: ignore[operator]
+
+
+def test_errors_exit_2(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
+    assert main(["review", str(tmp_path / "missing.json")]) == 2
+    assert "cannot read" in capsys.readouterr().err
