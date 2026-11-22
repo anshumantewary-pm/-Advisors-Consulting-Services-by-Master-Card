@@ -1157,6 +1157,41 @@ def _bridge(p: argparse.ArgumentParser) -> Handler:
     return handle
 
 
+@command("compare", "diagnose several card portfolios and compare them side by side")
+def _compare(p: argparse.ArgumentParser) -> Handler:
+    p.add_argument("files", nargs="+", help="portfolio review JSON files")
+
+    def handle(args: argparse.Namespace) -> Output:
+        rows = [diagnose(review_from_dict(read_json(f))) for f in args.files]
+        rows.sort(key=lambda d: -d.total_opportunity)
+        lines = [
+            f"{'Portfolio':<26} {'Health':>6} {'Profit':>9} {'ROA':>6} "
+            f"{'Opportunity':>12}  Biggest lever"
+        ]
+        for d in rows:
+            top = d.opportunities[0].title if d.opportunities else "none"
+            lines.append(
+                f"{d.review.name[:26]:<26} {d.health_score:>6} "
+                f"{money(d.pnl.pre_tax_profit):>9} {pct(d.pnl.roa):>6} "
+                f"{money(d.total_opportunity):>12}  {top}"
+            )
+        data = [
+            {
+                "name": d.review.name,
+                "portfolio_type": d.portfolio_type.key,
+                "health_score": d.health_score,
+                "pre_tax_profit": d.pnl.pre_tax_profit,
+                "roa": d.pnl.roa,
+                "total_opportunity": d.total_opportunity,
+                "opportunities": [o.to_dict() for o in d.opportunities],
+            }
+            for d in rows
+        ]
+        return Output("\n".join(lines), data)
+
+    return handle
+
+
 # ---------------------------------------------------------------- end of commands
 
 

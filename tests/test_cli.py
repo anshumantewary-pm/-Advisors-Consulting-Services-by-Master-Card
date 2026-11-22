@@ -598,3 +598,21 @@ def test_bridge(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
     bad = tmp_path / "b.json"
     bad.write_text('{"before": {}}', encoding="utf-8")
     assert main(["bridge", str(bad)]) == 2
+
+
+def test_compare(capsys: pytest.CaptureFixture[str]) -> None:
+    out = run(
+        capsys,
+        "compare",
+        str(EXAMPLES / "portfolio-review.json"),
+        str(EXAMPLES / "portfolio-review-premium.json"),
+    )
+    assert "Harbour Bank Signature" in out
+    data = run_json(
+        capsys,
+        "compare",
+        str(EXAMPLES / "portfolio-review.json"),
+        str(EXAMPLES / "portfolio-review-premium.json"),
+    )
+    assert isinstance(data, list)
+    assert data[0]["total_opportunity"] >= data[1]["total_opportunity"]
