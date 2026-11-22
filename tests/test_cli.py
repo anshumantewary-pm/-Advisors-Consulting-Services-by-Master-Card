@@ -569,3 +569,23 @@ def test_enhanced_data(capsys: pytest.CaptureFixture[str]) -> None:
     )
     assert "Payback" in out
     assert "months" in out
+
+
+def test_collections_strategy_command(capsys: pytest.CaptureFixture[str]) -> None:
+    out = run(
+        capsys,
+        "collections",
+        "--balances",
+        "1.2e8",
+        "--accounts",
+        "40000",
+        "--cure-before",
+        "0.70",
+        "--cure-after",
+        "0.76",
+        "--loss-given-no-cure",
+        "0.55",
+        "--cost-per-account",
+        "12",
+    )
+    assert "Break-even uplift" in out

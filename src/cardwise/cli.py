@@ -51,6 +51,7 @@ from cardwise.issuing.line_increase import line_increase
 from cardwise.issuing.pnl import CardEconomics, card_pnl
 from cardwise.issuing.rewards import rewards_programme
 from cardwise.market.sizing import card_market, share_of_wallet
+from cardwise.risk.collections import collections_strategy
 from cardwise.risk.fraud import Scored, best_threshold, rule_economics
 from cardwise.risk.provision import provision
 from cardwise.risk.rollrate import BUCKETS, analyse
@@ -1097,6 +1098,39 @@ def _enhanced_data(p: argparse.ArgumentParser) -> Handler:
             f"Payback                {payback}",
         ]
         return Output("\n".join(lines), s.to_dict())
+
+    return handle
+
+
+@command("collections", "early-stage collections: value of a higher cure rate vs its cost")
+def _collections(p: argparse.ArgumentParser) -> Handler:
+    p.add_argument(
+        "--balances", type=float, required=True, help="balances entering early delinquency per year"
+    )
+    p.add_argument("--accounts", type=float, required=True, help="accounts worked per year")
+    p.add_argument("--cure-before", type=float, required=True)
+    p.add_argument("--cure-after", type=float, required=True)
+    p.add_argument("--loss-given-no-cure", type=float, required=True)
+    p.add_argument("--cost-per-account", type=float, required=True)
+
+    def handle(args: argparse.Namespace) -> Output:
+        c = collections_strategy(
+            args.balances,
+            args.accounts,
+            args.cure_before,
+            args.cure_after,
+            args.loss_given_no_cure,
+            args.cost_per_account,
+        )
+        lines = [
+            f"Losses before       {money(c.losses_before)}",
+            f"Losses after        {money(c.losses_after)}",
+            f"Losses avoided      {money(c.losses_avoided)}",
+            f"Strategy cost       {money(c.strategy_cost)}",
+            f"Net benefit         {money(c.net_benefit)} (ROI {pct(c.roi)})",
+            f"Break-even uplift   {pct(c.break_even_cure_uplift, 2)} of cure rate",
+        ]
+        return Output("\n".join(lines), c.to_dict())
 
     return handle
 
