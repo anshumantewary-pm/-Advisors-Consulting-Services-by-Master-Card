@@ -8,6 +8,7 @@ arguments to a sub-parser and returns the handler. Handlers return an
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import io
 import json
 import sys
@@ -21,6 +22,8 @@ from cardwise.advisory.io import review_from_dict
 from cardwise.advisory.report import render_report, render_summary
 from cardwise.benchmark.ranges import PORTFOLIO_TYPES
 from cardwise.core.errors import CardwiseError, ValidationError
+from cardwise.issuing.pnl import CardEconomics, card_pnl
+from cardwise.issuing.rewards import rewards_programme
 
 
 @dataclass(frozen=True)
@@ -117,6 +120,75 @@ def _types(p: argparse.ArgumentParser) -> Handler:
                     band = f"{pct(r.low)} - {pct(r.high)}"
                 lines.append(f"    {r.label:<32} {band}")
         return Output("\n".join(lines), {k: t.to_dict() for k, t in PORTFOLIO_TYPES.items()})
+
+    return handle
+
+
+def _add_dataclass_flags(p: argparse.ArgumentParser, cls: type) -> None:
+    """One --flag per float field of a dataclass; fields without a default are required."""
+    for f in dataclasses.fields(cls):
+        required = f.default is dataclasses.MISSING
+        hint = "required" if required else f"default {f.default}"
+        p.add_argument("--" + f.name.replace("_", "-"), type=float, required=required, help=hint)
+
+
+@command("pnl", "credit card P&L from volumes and rates")
+def _pnl(p: argparse.ArgumentParser) -> Handler:
+    _add_dataclass_flags(p, CardEconomics)
+
+    def handle(args: argparse.Namespace) -> Output:
+        kwargs = {f.name: getattr(args, f.name) for f in dataclasses.fields(CardEconomics)}
+        result = card_pnl(CardEconomics(**{k: v for k, v in kwargs.items() if v is not None}))
+        lines = [f"{s.label:<30} {money(s.value):>10}" for s in result.steps]
+        lines += [
+            "",
+            f"Profit per active             {money(result.profit_per_active):>10}",
+            f"ROA on receivables            {pct(result.roa, 2):>10}",
+        ]
+        return Output("\n".join(lines), result.to_dict())
+
+    return handle
+
+
+@command("rewards", "does a rewards programme pay for itself? ROI and break-even spend lift")
+def _rewards(p: argparse.ArgumentParser) -> Handler:
+    p.add_argument("--participants", type=float, required=True)
+    p.add_argument("--spend", type=float, required=True, help="annual spend per participant")
+    p.add_argument("--lift", type=float, required=True, help="expected spend lift, e.g. 0.1")
+    p.add_argument("--earn", type=float, required=True, help="points per unit of spend")
+    p.add_argument("--point-value", type=float, required=True)
+    p.add_argument("--breakage", type=float, default=0.0, help="share of points never redeemed")
+    p.add_argument("--interchange", type=float, required=True, help="interchange rate")
+    p.add_argument("--network-fee", type=float, default=0.0)
+    p.add_argument("--fixed-cost", type=float, default=0.0)
+
+    def handle(args: argparse.Namespace) -> Output:
+        r = rewards_programme(
+            args.participants,
+            args.spend,
+            args.lift,
+            args.earn,
+            args.point_value,
+            args.breakage,
+            args.interchange,
+            args.network_fee,
+            args.fixed_cost,
+        )
+        be = (
+            "never (rewards cost exceeds margin)"
+            if r.break_even_lift is None
+            else pct(r.break_even_lift)
+        )
+        lines = [
+            f"Effective rewards rate  {pct(r.effective_rewards_rate, 2)}",
+            f"Incremental spend       {money(r.incremental_spend)}",
+            f"Incremental margin      {money(r.incremental_margin)}",
+            f"Programme cost          {money(r.programme_cost)}",
+            f"Net benefit             {money(r.net_benefit)}",
+            f"ROI                     {pct(r.roi)}",
+            f"Break-even spend lift   {be}",
+        ]
+        return Output("\n".join(lines), r.to_dict())
 
     return handle
 

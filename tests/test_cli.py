@@ -79,3 +79,61 @@ def test_types(capsys: pytest.CaptureFixture[str]) -> None:
 def test_errors_exit_2(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
     assert main(["review", str(tmp_path / "missing.json")]) == 2
     assert "cannot read" in capsys.readouterr().err
+
+
+def test_pnl(capsys: pytest.CaptureFixture[str]) -> None:
+    args = [
+        "pnl",
+        "--active-accounts",
+        "600000",
+        "--purchase-volume",
+        "6e9",
+        "--receivables",
+        "2.4e9",
+        "--revolving-balances",
+        "1.2e9",
+        "--fee-income",
+        "6e7",
+    ]
+    out = run(capsys, *args)
+    assert "Pre-tax profit" in out
+    assert "ROA on receivables" in out
+    data = run_json(capsys, *args)
+    assert data["interchange"] == pytest.approx(108e6)  # type: ignore[index]
+
+
+def test_rewards(capsys: pytest.CaptureFixture[str]) -> None:
+    base = [
+        "rewards",
+        "--participants",
+        "100000",
+        "--spend",
+        "12000",
+        "--lift",
+        "0.1",
+        "--earn",
+        "1",
+        "--point-value",
+        "0.01",
+        "--breakage",
+        "0.25",
+        "--interchange",
+        "0.02",
+    ]
+    assert "Break-even spend lift" in run(capsys, *base)
+    never = [
+        "rewards",
+        "--participants",
+        "10",
+        "--spend",
+        "100",
+        "--lift",
+        "0.1",
+        "--earn",
+        "3",
+        "--point-value",
+        "0.01",
+        "--interchange",
+        "0.015",
+    ]
+    assert "never" in run(capsys, *never)
