@@ -1,0 +1,11 @@
+{
+  "client": {"active_rate": 0.58, "revolve_rate": 0.42, "net_credit_loss_rate": 0.052, "roa": 0.021, "spend_per_active": 9800},
+  "higher_is_better": {"net_credit_loss_rate": false},
+  "peers": {
+    "active_rate": [0.61, 0.66, 0.70, 0.59, 0.73, 0.64, 0.68],
+    "revolve_rate": [0.52, 0.48, 0.55, 0.61, 0.45, 0.58, 0.50],
+    "net_credit_loss_rate": [0.034, 0.041, 0.029, 0.047, 0.038, 0.031, 0.044],
+    "roa": [0.031, 0.027, 0.038, 0.022, 0.035, 0.029, 0.033],
+    "spend_per_active": [9200, 11800, 10400, 12500, 8700, 10900, 11300]
+  }
+}

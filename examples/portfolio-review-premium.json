@@ -1,0 +1,23 @@
+{
+  "name": "Harbour Bank Signature",
+  "portfolio_type": "premium_credit",
+  "accounts": 180000,
+  "transactions": 40000000,
+  "approval_rate": 0.91,
+  "fraud_losses": 2400000,
+  "currency": "$",
+  "economics": {
+    "active_accounts": 140000,
+    "purchase_volume": 3800000000,
+    "receivables": 900000000,
+    "revolving_balances": 260000000,
+    "interchange_rate": 0.021,
+    "apr": 0.19,
+    "fee_income": 52000000,
+    "cost_of_funds": 0.045,
+    "rewards_rate": 0.0165,
+    "net_credit_loss_rate": 0.022,
+    "network_fee_rate": 0.0013,
+    "cost_per_account": 95
+  }
+}

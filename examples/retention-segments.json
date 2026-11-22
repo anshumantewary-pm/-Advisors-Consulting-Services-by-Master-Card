@@ -1,0 +1,8 @@
+{
+  "segments": [
+    {"name": "Premium, high churn risk", "customers": 2000, "churn_probability": 0.30, "clv": 1200, "offer_cost": 40, "save_rate": 0.25},
+    {"name": "Revolvers, rate shoppers", "customers": 8000, "churn_probability": 0.25, "clv": 450, "offer_cost": 20, "save_rate": 0.30},
+    {"name": "Mass, low engagement", "customers": 20000, "churn_probability": 0.20, "clv": 150, "offer_cost": 15, "save_rate": 0.20},
+    {"name": "Dormant", "customers": 5000, "churn_probability": 0.50, "clv": 20, "offer_cost": 30, "save_rate": 0.50}
+  ]
+}

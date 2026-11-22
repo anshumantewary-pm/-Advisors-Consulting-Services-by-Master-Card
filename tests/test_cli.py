@@ -1,0 +1,619 @@
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+from cardwise.cli import main, money, pct, read_json, read_text, write_text
+from cardwise.core.errors import ValidationError
+
+ROOT = Path(__file__).resolve().parents[1]
+EXAMPLES = ROOT / "examples"
+
+
+def run(capsys: pytest.CaptureFixture[str], *argv: str) -> str:
+    assert main(list(argv)) == 0
+    return capsys.readouterr().out
+
+
+def run_json(capsys: pytest.CaptureFixture[str], *argv: str) -> object:
+    return json.loads(run(capsys, *argv, "--json"))
+
+
+def test_version(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit):
+        main(["--version"])
+    assert "cardwise" in capsys.readouterr().out
+
+
+def test_module_entry_point() -> None:
+    out = subprocess.run(
+        [sys.executable, "-m", "cardwise", "--version"], capture_output=True, text=True, check=True
+    )
+    assert out.stdout.startswith("cardwise")
+
+
+def test_helpers(tmp_path: Path) -> None:
+    assert money(2_500_000) == "2.5M"
+    assert money(-12.5) == "-12.50"
+    assert pct(None) == "n/a"
+    target = tmp_path / "x.txt"
+    write_text(str(target), "hi")
+    assert read_text(str(target)) == "hi"
+    bad = tmp_path / "bad.json"
+    bad.write_text("{", encoding="utf-8")
+    with pytest.raises(ValidationError, match="not valid JSON"):
+        read_json(str(bad))
+    with pytest.raises(ValidationError, match="cannot read"):
+        read_json(str(tmp_path / "missing.json"))
+    with pytest.raises(ValidationError, match="cannot read"):
+        read_text(str(tmp_path / "missing.txt"))
+    with pytest.raises(ValidationError, match="cannot write"):
+        write_text(str(tmp_path / "no" / "x.txt"), "x")
+
+
+def test_review(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
+    out = run(capsys, "review", str(EXAMPLES / "portfolio-review.json"))
+    assert "Harbour Bank Cards" in out
+    assert "Top opportunities" in out
+    report = tmp_path / "r.md"
+    out = run(capsys, "review", str(EXAMPLES / "portfolio-review.json"), "--report", str(report))
+    assert report.read_text(encoding="utf-8").startswith("# Portfolio review")
+    assert "## 1. Executive summary" in run(
+        capsys, "review", str(EXAMPLES / "portfolio-review.json"), "--report", "-"
+    )
+    data = run_json(capsys, "review", str(EXAMPLES / "portfolio-review.json"))
+    assert isinstance(data, dict)
+    assert data["opportunities"]
+    assert data["report_markdown"].startswith("# Portfolio review")
+    assert data["target_state"]["bridge"]["change"] > 0
+    full = run(
+        capsys,
+        "review",
+        str(EXAMPLES / "portfolio-review.json"),
+        "--achievement",
+        "1",
+        "--report",
+        "-",
+    )
+    assert "Closing 100% of each gap" in full
+
+
+def test_types(capsys: pytest.CaptureFixture[str]) -> None:
+    out = run(capsys, "types")
+    assert "mass_credit" in out
+    assert "3 - 8 bp" in out
+    assert "premium_credit" in run_json(capsys, "types")  # type: ignore[operator]
+
+
+def test_errors_exit_2(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
+    assert main(["review", str(tmp_path / "missing.json")]) == 2
+    assert "cannot read" in capsys.readouterr().err
+
+
+def test_pnl(capsys: pytest.CaptureFixture[str]) -> None:
+    args = [
+        "pnl",
+        "--active-accounts",
+        "600000",
+        "--purchase-volume",
+        "6e9",
+        "--receivables",
+        "2.4e9",
+        "--revolving-balances",
+        "1.2e9",
+        "--fee-income",
+        "6e7",
+    ]
+    out = run(capsys, *args)
+    assert "Pre-tax profit" in out
+    assert "ROA on receivables" in out
+    data = run_json(capsys, *args)
+    assert data["interchange"] == pytest.approx(108e6)  # type: ignore[index]
+
+
+def test_rewards(capsys: pytest.CaptureFixture[str]) -> None:
+    base = [
+        "rewards",
+        "--participants",
+        "100000",
+        "--spend",
+        "12000",
+        "--lift",
+        "0.1",
+        "--earn",
+        "1",
+        "--point-value",
+        "0.01",
+        "--breakage",
+        "0.25",
+        "--interchange",
+        "0.02",
+    ]
+    assert "Break-even spend lift" in run(capsys, *base)
+    never = [
+        "rewards",
+        "--participants",
+        "10",
+        "--spend",
+        "100",
+        "--lift",
+        "0.1",
+        "--earn",
+        "3",
+        "--point-value",
+        "0.01",
+        "--interchange",
+        "0.015",
+    ]
+    assert "never" in run(capsys, *never)
+
+
+def test_pricing(capsys: pytest.CaptureFixture[str]) -> None:
+    args = [
+        "pricing",
+        "--volume",
+        "1e7",
+        "--mix",
+        "debit=0.5:0.002",
+        "--mix",
+        "credit=0.3:0.003",
+        "--mix",
+        "commercial=0.2:0.015",
+        "--scheme-fee",
+        "0.0015",
+        "--blended-mdr",
+        "0.015",
+        "--markup",
+        "0.003",
+    ]
+    out = run(capsys, *args)
+    assert "Blended interchange  0.49%" in out
+    assert "IC++" in out
+    assert (
+        main(
+            [
+                "pricing",
+                "--volume",
+                "1",
+                "--mix",
+                "bad",
+                "--scheme-fee",
+                "0",
+                "--blended-mdr",
+                "0",
+                "--markup",
+                "0",
+            ]
+        )
+        == 2
+    )
+    assert "TYPE=SHARE:RATE" in capsys.readouterr().err
+
+
+def test_merchant_and_chargebacks(capsys: pytest.CaptureFixture[str]) -> None:
+    out = run(
+        capsys,
+        "merchant",
+        "--attempts",
+        "100000",
+        "--approvals",
+        "92000",
+        "--sales",
+        "4.6e6",
+        "--chargebacks",
+        "700",
+        "--decline",
+        "insufficient funds=4000",
+    )
+    assert "early warning" in out
+    assert "insufficient funds" in out
+    assert (
+        main(
+            [
+                "merchant",
+                "--attempts",
+                "1",
+                "--approvals",
+                "1",
+                "--sales",
+                "1",
+                "--chargebacks",
+                "0",
+                "--decline",
+                "x=y",
+            ]
+        )
+        == 2
+    )
+    assert "NAME=NUMBER" in capsys.readouterr().err
+    out = run(
+        capsys,
+        "chargebacks",
+        "--count",
+        "1000",
+        "--value",
+        "80",
+        "--fee",
+        "15",
+        "--contest-rate",
+        "0.6",
+        "--win-rate",
+        "0.4",
+        "--contest-cost",
+        "20",
+    )
+    assert "Recommendation      contest" in out
+    out = run(capsys, "chargebacks", "--count", "10", "--value", "10", "--fee", "15")
+    assert "accept" in out
+
+
+def test_fraud_commands(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
+    out = run(
+        capsys,
+        "fraud",
+        "--tp",
+        "80",
+        "--fp",
+        "400",
+        "--fn",
+        "20",
+        "--tn",
+        "99500",
+        "--fraud-value",
+        "300",
+        "--good-value",
+        "60",
+        "--margin",
+        "0.03",
+    )
+    assert "Good : fraud declined  5.0 : 1" in out
+    out = run(capsys, "threshold", str(EXAMPLES / "scored-transactions.csv"), "--margin", "0.05")
+    assert "Best threshold" in out
+    data = run_json(
+        capsys, "threshold", str(EXAMPLES / "scored-transactions.csv"), "--margin", "0.05"
+    )
+    assert isinstance(data, dict)
+    assert data["recall"] > 0.5
+    bad = tmp_path / "bad.csv"
+    bad.write_text("score,is_fraud\n0.1,1\n", encoding="utf-8")
+    assert main(["threshold", str(bad), "--margin", "0.1"]) == 2
+    assert "line 2" in capsys.readouterr().err
+    none = tmp_path / "none.csv"
+    none.write_text("score,is_fraud,value\n0.5,0,10\n", encoding="utf-8")
+    assert run_json(capsys, "threshold", str(none), "--margin", "0.1")["threshold"] is None  # type: ignore[index]
+
+
+def test_risk_portfolio_commands(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
+    out = run(capsys, "rollrate", str(EXAMPLES / "roll-rates.json"))
+    assert "Flow-through to charge-off" in out
+    assert "charge_off" in out
+    out = run(capsys, "vintage", str(EXAMPLES / "vintages.json"))
+    assert "worst 2024-H1" in out
+    assert "month 3" in run(capsys, "vintage", str(EXAMPLES / "vintages.json"), "--at-month", "3")
+    bad = tmp_path / "b.json"
+    for body, message in [
+        ("[]", "needs 'moves'"),
+        ('{"moves": {}, "balances": {}, "months": 1.5}', "whole number"),
+    ]:
+        bad.write_text(body, encoding="utf-8")
+        assert main(["rollrate", str(bad)]) == 2
+        assert message in capsys.readouterr().err
+    bad_vintages = [("{}", "'vintages' list"), ('{"vintages": [{"name": "x"}]}', "each vintage")]
+    for body, message in bad_vintages:
+        bad.write_text(body, encoding="utf-8")
+        assert main(["vintage", str(bad)]) == 2
+        assert message in capsys.readouterr().err
+
+
+def test_customer_files(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
+    out = run(capsys, "rfm", str(EXAMPLES / "customers.csv"))
+    assert "Champions" in out
+    out = run(capsys, "cohort", str(EXAMPLES / "activity.csv"))
+    assert out.splitlines()[-1].startswith("Avg")
+    bad = tmp_path / "b.csv"
+    bad.write_text("id,spend\n1,2\n", encoding="utf-8")
+    assert main(["rfm", str(bad)]) == 2
+    assert "missing column" in capsys.readouterr().err
+    bad.write_text("id,days_since_last,transactions,spend\nx,a,1,1\n", encoding="utf-8")
+    assert main(["rfm", str(bad)]) == 2
+    bad.write_text("customer_id,cohort,active_period\nx,a,1\n", encoding="utf-8")
+    assert main(["cohort", str(bad)]) == 2
+
+
+def test_customer_value_commands(capsys: pytest.CaptureFixture[str]) -> None:
+    assert "Lifetime value" in run(capsys, "clv", "--margin", "200", "--retention", "0.85")
+    data = run_json(capsys, "clv", "--margin", "100", "--retention", "1", "--discount-rate", "0")
+    assert data["clv"] is None  # type: ignore[index]
+    out = run(
+        capsys, "experiment", "--test", "10000,1200", "--control", "10000,1000", "--value", "50"
+    )
+    assert "significant" in out
+    assert main(["experiment", "--test", "x", "--control", "1,1"]) == 2
+    assert "SIZE,CONVERSIONS" in capsys.readouterr().err
+    assert "per group" in run(capsys, "sample-size", "--baseline", "0.1", "--lift", "0.02")
+
+
+def test_market_commands(capsys: pytest.CaptureFixture[str]) -> None:
+    out = run(
+        capsys,
+        "market",
+        "--population",
+        "1e7",
+        "--spend-per-capita",
+        "8000",
+        "--card-share",
+        "0.45",
+        "--growth",
+        "0.05",
+        "--target-share",
+        "0.6",
+        "--revenue-yield",
+        "0.02",
+    )
+    assert "Revenue pool" in out
+    assert "45.0%" in out
+    out = run(
+        capsys,
+        "wallet",
+        "--our-spend",
+        "3e7",
+        "--total-spend",
+        "1e8",
+        "--target",
+        "0.45",
+        "--main-card-customers",
+        "4000",
+        "--customers",
+        "10000",
+    )
+    assert "Share of wallet    30.0%" in out
+
+
+def test_benchmark(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
+    out = run(capsys, "benchmark", str(EXAMPLES / "peer-benchmark.json"))
+    assert out.splitlines()[1].split()[-1] == "Q4"
+    bad = tmp_path / "b.json"
+    bad.write_text("{}", encoding="utf-8")
+    assert main(["benchmark", str(bad)]) == 2
+
+
+def test_credit_commands(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
+    credit = EXAMPLES / "credit"
+    out = run(capsys, "credit", str(credit / "northwind-industrial.json"))
+    assert "Decision        Approve" in out
+    memo = tmp_path / "memo.md"
+    out = run(capsys, "credit", str(credit / "coastal-retail.json"), "--memo", str(memo))
+    assert memo.read_text(encoding="utf-8").startswith("# Credit Memo")
+    assert "# Credit Memo" in run(
+        capsys, "credit", str(credit / "meridian-energy.json"), "--memo", "-"
+    )
+    data = run_json(capsys, "credit", str(credit / "meridian-energy.json"))
+    assert data["decision"] == "Decline"  # type: ignore[index]
+    assert "RECOVER" in run(capsys, "collect", str(credit / "meridian-default.json"))
+    assert "manufacturing" in run(capsys, "industries")
+
+
+def test_whatif_commands(capsys: pytest.CaptureFixture[str]) -> None:
+    assert "card" in run(capsys, "models")
+    data = run_json(capsys, "sensitivity", "card")
+    assert isinstance(data, dict)
+    assert data["most_sensitive"]
+    out = run(capsys, "sensitivity", "card", "--range", "apr=0.15:0.25", "--set", "apr=0.2")
+    assert "apr" in out
+    out = run(capsys, "goalseek", "card", "--vary", "net_credit_loss_rate", "--between", "0:0.5")
+    assert "net_credit_loss_rate" in out
+    out = run(
+        capsys,
+        "simulate",
+        "card",
+        "--dist",
+        "net_credit_loss_rate=tri:0.03:0.035:0.08",
+        "--runs",
+        "500",
+    )
+    assert "90% band" in out
+
+
+@pytest.mark.parametrize(
+    ("argv", "message"),
+    [
+        (["sensitivity", "card", "--set", "nope=1"], "no input"),
+        (["sensitivity", "card", "--set", "apr=x"], "not a number"),
+        (["sensitivity", "card", "--set", "apr"], "NAME=VALUE"),
+        (["sensitivity", "card", "--range", "apr=1"], "LOW:HIGH"),
+        (["simulate", "card", "--dist", "nope=uniform:1:2"], "no input"),
+    ],
+)
+def test_whatif_errors(capsys: pytest.CaptureFixture[str], argv: list[str], message: str) -> None:
+    assert main(argv) == 2
+    assert message in capsys.readouterr().err
+
+
+def test_ensure_utf8_reconfigures_narrow_streams() -> None:
+    import io
+
+    from cardwise.cli import ensure_utf8
+
+    stream = io.TextIOWrapper(io.BytesIO(), encoding="cp1252")
+    ensure_utf8(stream)
+    assert stream.encoding.lower() == "utf-8"
+    ensure_utf8(object())  # non-streams are ignored
+
+
+def test_activation(capsys: pytest.CaptureFixture[str]) -> None:
+    out = run(
+        capsys,
+        "activation",
+        "--targeted",
+        "200000",
+        "--response",
+        "0.12",
+        "--control",
+        "0.04",
+        "--contact-cost",
+        "0.5",
+        "--incentive",
+        "25",
+        "--profit",
+        "180",
+    )
+    assert "Payback                  year 1" in out
+    out = run(
+        capsys,
+        "activation",
+        "--targeted",
+        "100",
+        "--response",
+        "0.05",
+        "--control",
+        "0.05",
+        "--incentive",
+        "50",
+        "--profit",
+        "10",
+    )
+    assert "not within horizon" in out
+
+
+def test_retention(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
+    out = run(capsys, "retention", str(EXAMPLES / "retention-segments.json"))
+    assert "Premium, high churn risk" in out
+    assert "budget" in out
+    bad = tmp_path / "b.json"
+    bad.write_text("{}", encoding="utf-8")
+    assert main(["retention", str(bad)]) == 2
+
+
+def test_merchants(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
+    out = run(capsys, "merchants", str(EXAMPLES / "merchant-portfolio.json"))
+    assert "Repricing uplift" in out
+    bad = tmp_path / "b.json"
+    for body in ("{}", '{"merchants": [], "target_bps": "x"}'):
+        bad.write_text(body, encoding="utf-8")
+        assert main(["merchants", str(bad)]) == 2
+
+
+def test_provision(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
+    out = run(capsys, "provision", str(EXAMPLES / "provision.json"))
+    assert "IFRS 9 ECL" in out
+    assert "stage 3" in out
+    bad = tmp_path / "b.json"
+    bad.write_text('{"balances": {}}', encoding="utf-8")
+    assert main(["provision", str(bad)]) == 2
+    bad.write_text(
+        '{"balances": {"current": 0}, "pd_12m": {"current": 0.1}, "lgd": 0.5}', encoding="utf-8"
+    )
+    assert "n/a" in run(capsys, "provision", str(bad))
+
+
+def test_examples_command_lists_runnable_commands(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from cardwise.cli import EXAMPLES as LISTED
+
+    assert "cardwise review" in run(capsys, "examples")
+    monkeypatch.chdir(ROOT)
+    for path, cmd in LISTED:
+        assert (ROOT / path).exists(), path
+        argv = cmd.split()[1:]
+        argv = [str(tmp_path / a) if a.endswith(".md") else a for a in argv]
+        assert main(argv) == 0, cmd
+    capsys.readouterr()
+
+
+def test_line_increase(capsys: pytest.CaptureFixture[str]) -> None:
+    out = run(
+        capsys,
+        "line-increase",
+        "--accounts",
+        "50000",
+        "--increase",
+        "2000",
+        "--utilisation",
+        "0.3",
+        "--revolve-share",
+        "0.6",
+        "--apr",
+        "0.22",
+        "--cost-of-funds",
+        "0.045",
+        "--loss-rate",
+        "0.05",
+    )
+    assert "Break-even loss rate" in out
+    assert "Net annual profit" in out
+
+
+def test_enhanced_data(capsys: pytest.CaptureFixture[str]) -> None:
+    out = run(
+        capsys,
+        "enhanced-data",
+        "--volume",
+        "2e7",
+        "--standard-rate",
+        "0.025",
+        "--level2-rate",
+        "0.02",
+        "--level3-rate",
+        "0.016",
+        "--l2-today",
+        "0.1",
+        "--l2-after",
+        "0.3",
+        "--l3-after",
+        "0.5",
+        "--implementation-cost",
+        "60000",
+    )
+    assert "Payback" in out
+    assert "months" in out
+
+
+def test_collections_strategy_command(capsys: pytest.CaptureFixture[str]) -> None:
+    out = run(
+        capsys,
+        "collections",
+        "--balances",
+        "1.2e8",
+        "--accounts",
+        "40000",
+        "--cure-before",
+        "0.70",
+        "--cure-after",
+        "0.76",
+        "--loss-given-no-cure",
+        "0.55",
+        "--cost-per-account",
+        "12",
+    )
+    assert "Break-even uplift" in out
+
+
+def test_bridge(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
+    out = run(capsys, "bridge", str(EXAMPLES / "pnl-bridge.json"))
+    assert "credit losses" in out
+    assert out.splitlines()[2].strip().startswith("credit losses")  # biggest drag first
+    assert "+4.5M" in out
+    bad = tmp_path / "b.json"
+    bad.write_text('{"before": {}}', encoding="utf-8")
+    assert main(["bridge", str(bad)]) == 2
+
+
+def test_compare(capsys: pytest.CaptureFixture[str]) -> None:
+    out = run(
+        capsys,
+        "compare",
+        str(EXAMPLES / "portfolio-review.json"),
+        str(EXAMPLES / "portfolio-review-premium.json"),
+    )
+    assert "Harbour Bank Signature" in out
+    data = run_json(
+        capsys,
+        "compare",
+        str(EXAMPLES / "portfolio-review.json"),
+        str(EXAMPLES / "portfolio-review-premium.json"),
+    )
+    assert isinstance(data, list)
+    assert data[0]["total_opportunity"] >= data[1]["total_opportunity"]
