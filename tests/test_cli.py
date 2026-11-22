@@ -294,3 +294,18 @@ def test_risk_portfolio_commands(capsys: pytest.CaptureFixture[str], tmp_path: P
         bad.write_text(body, encoding="utf-8")
         assert main(["vintage", str(bad)]) == 2
         assert message in capsys.readouterr().err
+
+
+def test_customer_files(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
+    out = run(capsys, "rfm", str(EXAMPLES / "customers.csv"))
+    assert "Champions" in out
+    out = run(capsys, "cohort", str(EXAMPLES / "activity.csv"))
+    assert out.splitlines()[-1].startswith("Avg")
+    bad = tmp_path / "b.csv"
+    bad.write_text("id,spend\n1,2\n", encoding="utf-8")
+    assert main(["rfm", str(bad)]) == 2
+    assert "missing column" in capsys.readouterr().err
+    bad.write_text("id,days_since_last,transactions,spend\nx,a,1,1\n", encoding="utf-8")
+    assert main(["rfm", str(bad)]) == 2
+    bad.write_text("customer_id,cohort,active_period\nx,a,1\n", encoding="utf-8")
+    assert main(["cohort", str(bad)]) == 2

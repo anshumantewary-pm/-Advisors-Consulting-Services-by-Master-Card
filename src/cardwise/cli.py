@@ -26,6 +26,8 @@ from cardwise.advisory.io import review_from_dict
 from cardwise.advisory.report import render_report, render_summary
 from cardwise.benchmark.ranges import PORTFOLIO_TYPES
 from cardwise.core.errors import CardwiseError, ValidationError
+from cardwise.customer.cohort import cohort_retention
+from cardwise.customer.rfm import Customer, rfm
 from cardwise.issuing.pnl import CardEconomics, card_pnl
 from cardwise.issuing.rewards import rewards_programme
 from cardwise.risk.fraud import Scored, best_threshold, rule_economics
@@ -453,6 +455,63 @@ def _vintage(p: argparse.ArgumentParser) -> Handler:
         lines += [f"  {k:<10} {pct(v, 2)}" for k, v in vc.loss_at_month.items()]
         lines += ["", f"Best {vc.best} · worst {vc.worst}"]
         return Output("\n".join(lines), vc.to_dict())
+
+    return handle
+
+
+def _csv_rows(path: str, columns: Sequence[str]) -> list[dict[str, str]]:
+    reader = csv.DictReader(io.StringIO(read_text(path)))
+    missing = [c for c in columns if c not in (reader.fieldnames or [])]
+    if missing:
+        raise ValidationError(f"{path} is missing column(s): {', '.join(missing)}")
+    return list(reader)
+
+
+@command("rfm", "RFM segmentation of a customer file (CSV)")
+def _rfm(p: argparse.ArgumentParser) -> Handler:
+    p.add_argument("file", help="CSV with id,days_since_last,transactions,spend")
+
+    def handle(args: argparse.Namespace) -> Output:
+        rows = _csv_rows(args.file, ("id", "days_since_last", "transactions", "spend"))
+        try:
+            customers = [
+                Customer(
+                    r["id"],
+                    float(r["days_since_last"]),
+                    float(r["transactions"]),
+                    float(r["spend"]),
+                )
+                for r in rows
+            ]
+        except ValueError as error:
+            raise ValidationError(f"{args.file}: {error}") from None
+        res = rfm(customers)
+        total = sum(res.segment_spend.values()) or 1.0
+        lines = [f"{'Segment':<18} {'Customers':>9} {'Spend share':>12}"]
+        for name, count in sorted(res.segment_counts.items(), key=lambda kv: -kv[1]):
+            lines.append(f"{name:<18} {count:>9} {pct(res.segment_spend[name] / total):>12}")
+        return Output("\n".join(lines), res.to_dict())
+
+    return handle
+
+
+@command("cohort", "cohort retention table from activity rows (CSV)")
+def _cohort(p: argparse.ArgumentParser) -> Handler:
+    p.add_argument("file", help="CSV with customer_id,cohort,active_period (integers)")
+
+    def handle(args: argparse.Namespace) -> Output:
+        rows = _csv_rows(args.file, ("customer_id", "cohort", "active_period"))
+        try:
+            activity = [(r["customer_id"], int(r["cohort"]), int(r["active_period"])) for r in rows]
+        except ValueError as error:
+            raise ValidationError(f"{args.file}: {error}") from None
+        t = cohort_retention(activity)
+        lines = ["Cohort  Size  " + "  ".join(f"P{k:<4}" for k in range(len(t.average)))]
+        for c in t.cohorts:
+            cells = "  ".join(f"{v * 100:4.0f}%" for v in t.retention[c])
+            lines.append(f"{c:<6} {t.sizes[c]:>5}  {cells}")
+        lines.append("Avg          " + "  ".join(f"{v * 100:4.0f}%" for v in t.average))
+        return Output("\n".join(lines), t.to_dict())
 
     return handle
 
