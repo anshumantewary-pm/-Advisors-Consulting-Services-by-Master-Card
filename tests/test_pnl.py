@@ -41,3 +41,14 @@ def test_zero_revenue_mix() -> None:
 def test_validation(field: str, value: float) -> None:
     with pytest.raises(ValidationError, match=field):
         card_pnl(dataclasses.replace(BASE, **{field: value}))
+
+
+def test_bridge_adds_up() -> None:
+    from cardwise.issuing.pnl import pnl_bridge
+
+    after = dataclasses.replace(BASE, purchase_volume=6.6e9, net_credit_loss_rate=0.045)
+    b = pnl_bridge(BASE, after)
+    assert sum(b.drivers.values()) == pytest.approx(b.change)
+    assert b.drivers["credit_losses"] == pytest.approx(-0.01 * 2.4e9)
+    assert b.drivers["interchange"] > 0
+    assert b.drivers["fees"] == 0

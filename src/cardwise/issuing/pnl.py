@@ -101,3 +101,33 @@ def card_pnl(e: CardEconomics) -> CardPnL:
         revenue_mix={k: (v / revenue if revenue else 0.0) for k, v in mix.items()},
         steps=steps,
     )
+
+
+@dataclass(frozen=True)
+class PnLBridge(Result):
+    """How each P&L line moved pre-tax profit between two periods."""
+
+    before: float
+    after: float
+    change: float
+    drivers: dict[str, float]  # profit impact of each line; sums to ``change``
+
+
+_LINES = (
+    ("interchange", 1),
+    ("interest", 1),
+    ("fees", 1),
+    ("funding_cost", -1),
+    ("rewards_cost", -1),
+    ("credit_losses", -1),
+    ("network_fees", -1),
+    ("operating_cost", -1),
+)
+
+
+def pnl_bridge(before: CardEconomics, after: CardEconomics) -> PnLBridge:
+    """Walk pre-tax profit from one period to the next, line by line (adds up exactly)."""
+    a, b = card_pnl(before), card_pnl(after)
+    drivers = {name: sign * (getattr(b, name) - getattr(a, name)) for name, sign in _LINES}
+    return PnLBridge(a.pre_tax_profit, b.pre_tax_profit, b.pre_tax_profit - a.pre_tax_profit,
+                     drivers)  # fmt: skip
